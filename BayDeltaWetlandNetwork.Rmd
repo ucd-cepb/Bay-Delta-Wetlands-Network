@@ -1,0 +1,1143 @@
+---
+title: "Bay-Delta Wetland Investment Network Analysis"
+author: "Kyra Gmoser-Daskalakis"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages}
+#general
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+#network building
+library(tidyr)
+library(network)
+library(sna)
+library(igraph)
+
+#network spatial attributes
+library(units)
+library(rmapshaper)
+library(areal)
+library(tidycensus)
+library(sf)
+library(tigris)
+library(SpatialAcc)
+library(ipumsr)
+library(censusapi)
+library(lehdr)
+
+
+#network descriptives
+#library(devtools)
+#devtools::install_github("txm676/nos")
+library(nos)
+library(bipartite)
+library(birankr)
+library(tnet)
+
+library(corrr)
+library(corrplot)
+library(Hmisc)
+library(corrr)
+library(spdep)
+library(matrixStats)
+
+#TERGM
+library(btergm)
+library(ergm)
+
+```
+
+####Load and Filter EcoAtlas Data--------
+
+```{r load ecoatlas project data}
+RawEcoAtlas <- read.csv("ecoatlas_full_june424.csv")
+
+```
+
+```{r ecoatlas project data filtering}
+#filter by bay delta county locations (or combos thereof)
+RawEcoAtlas2 <- RawEcoAtlas %>% filter(county=="Alameda"|county=="Contra Costa"|county== "San Mateo"|county== "Santa Clara"| county=="Sacramento"| county=="Solano"|county== "Yolo"|county=="Marin"| county=="Napa"|county== "Sonoma"|county== "San Francisco"| county=="San Joaquin"|county=="Contra Costa, Marin"| county=="Alameda, Contra Costa, Marin, San Francisco" | county=="Contra Costa, Sacramento, Solano, Yolo" | county=="San Francisco, San Joaquin, Yolo"| county=="Sacramento, Solano, Yolo"| county=="Sacramento, Yolo" | county=="Sacramento, San Joaquin, Yolo" | county=="Marin, Napa, Solano, Sonoma" | county=="Marin, Solano" | county=="Napa, Solano, Sonoma" | county=="Contra Costa, Sacramento, San Joaquin, Solano, Yolo" | county=="Sacramento, Solano" | county=="Solano, Yolo" | county=="Sacramento, San Joaquin" | county=="Alameda, San Mateo, Santa Clara" | county=="Alameda, Marin" | county=="San Mateo, Santa Clara" | county=="Marin, Sonoma"| county=="Marin, Napa, San Francisco, San Mateo, Santa Clara, Solano, Sonoma" | county=="Alameda, Contra Costa, Marin, Napa, San Francisco, San Mateo, Santa Clara, Solano, Sonoma" | county=="Alameda, San Mateo" | county=="Alameda, Contra Costa"| county=="Napa, Solano")
+
+#filter by activity type for wetland restoration
+RawEcoAtlas3 <- RawEcoAtlas2 %>% filter(activitytypename=="Creation/Establishment"|activitytypename=="Demonstration"|activitytypename=="Enhancement"|activitytypename=="Restoration (unspecified)"|activitytypename=="Restoration/Re-establishment"|activitytypename=="Restoration/Rehabilitation"|activitytypename=="Acquisition/Preservation/Protection"|activitytypename=="Environmental Education/Outreach/Stewardship/Access")
+
+#check how many projects removed 
+NonRestoreProjs <- subset(RawEcoAtlas2, !(projectid %in% RawEcoAtlas3$projectid))
+NonRestoreProjs <- NonRestoreProjs %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+unique(NonRestoreProjs$EAid) #934 unique projects removed based on habitat 
+
+#filter by habitat to wetlands or unknown 
+RawEcoAtlas4 <- RawEcoAtlas3 %>% filter(habitatname=="Bay Habitat (SFBJV Only)"| habitatname=="Buffer area"| habitatname=="Depressional Wetland" | habitatname=="Estuarine Wetland"| habitatname=="Riverine Wetland"|habitatname=="Palustrine Wetland"|habitatname=="Seasonal Wetland"|habitatname=="Seeps and springs wetlands"|habitatname=="Subtidal Habitat"|habitatname=="Unknown/unspecified habitat"|habitatname=="Unknown/unspecified wetland habitat"|habitatname=="None")
+
+#check how many projects removed 
+NonWetlandHabProjs <- subset(RawEcoAtlas3, !(projectid %in% RawEcoAtlas4$projectid))
+NonWetlandHabProjs <- NonWetlandHabProjs %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+unique(NonWetlandHabProjs$EAid) #277 unique projects removed based on habitat 
+
+#filter by funding availability (not lacking funding except tule red)
+RawEcoAtlas5 <- RawEcoAtlas4[RawEcoAtlas4$fundername!="", ]
+RawEcoAtlas5.5 <- RawEcoAtlas5[!is.na(RawEcoAtlas5$fundingamount), ]
+
+#Add back Tule Red manually (case study selected from expert consultation, but EcoAltas lacks funding info so gets filtered out)
+TuleRedEntries <- RawEcoAtlas4[RawEcoAtlas4$projectname=="Tule Red Tidal Habitat Restoration",]
+RawEcoAtlas6 <- rbind(RawEcoAtlas5.5, TuleRedEntries)
+
+#filter by project status (remove proposed projects)
+RawEcoAtlas7 <- RawEcoAtlas6 %>% filter(sitestatus!="Planning/Scoping")
+RawEcoAtlas7 <- RawEcoAtlas7 %>% filter(sitestatus!="Proposed")
+
+#collapse duplicate entries (if have same funding ID its the same entry)
+#replace 'NA' funding IDs of Tule Red projects so they're not duplicates and don't get filtered out
+RawEcoAtlas7$fundingid[906] <- "NA1"
+RawEcoAtlas7$fundingid[907] <- "NA2"
+RawEcoAtlas7$fundingid[908] <- "NA3"
+
+#remove all duplicate funding instances
+EcoAtlas <- RawEcoAtlas7 %>%
+  arrange(fundingid) %>%
+  filter(duplicated(fundingid) == FALSE)
+
+#Filter out several additional projects that don't meet criteria
+#first remove beach projects or open water (since its listed in subhabitat)
+EcoAtlas <- EcoAtlas %>% filter(subhabitattype!="Beach")
+EcoAtlas <- EcoAtlas %>% filter(subhabitattype!="Open water")
+
+#filter out fee title or conservation easement projects since it's a subactivity (just purchasing land, no restoration is occuring)
+EcoAtlas <- EcoAtlas %>% filter(subactivitytype!="Fee Title")
+EcoAtlas <- EcoAtlas %>% filter(subactivitytype!="Conservation Easement")
+```
+
+```{r Manual EcoAtlas project data filtering}
+#additional manual filtering of projects not meeting criteria but not filtered out based on the above criteria (e.g. says 'unknown habitat' but abstract indicates it is beach or open water)
+
+#remove feasibility and monitoring studies that remain due to 'unknown' activity type
+
+#feasibility studies
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5806)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=9777)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5502)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=9414)
+
+#monitoring studies (with no associated restoration)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=11054)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=11113)
+
+#remove fish passage, bank stabilization, and beach projects and repair/maintenance projects with 'unknown' subhabitat or project type
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5445) #fish passage
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5466) #fish passage
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5738) #bank stabilization
+EcoAtlas <- EcoAtlas %>% filter(projectid!=9498) #repair
+EcoAtlas <- EcoAtlas %>% filter(projectid!=9863) #repair
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5734) #beach
+
+#remove projects with only acquisition of existing quality habitat with no plan for restoration or enhancement (based on project abstract)
+#5654, 5704, 5736, 5360, 5512
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5654)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5704)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5736)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5360)
+EcoAtlas <- EcoAtlas %>% filter(projectid!=5512)
+
+sort(unique(EcoAtlas$projectid)) #199 project ids (slightly more due to subprojects)
+
+```
+
+####Create Network Edgelist----------
+```{r Clean Project Funders and Implementers, Create Edgelist}
+#Each row is for a unique funding id for a project- some projects have the same overall project id but represent subprojects, based on having different siteids or activityids 
+#Rows with the same project, site, and activity ids show each instance of funding for that project
+#Need to separate out which projects with the same projectid are subprojects to keep separate, and for those that are the same to combine all funders for them
+#Will create unique projectids that use the siteid and activityid
+
+EcoAtlas <- EcoAtlas %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+
+#Now separate out the implementing orgs in the 'contacts' column
+#Each is listed as a person with the org in parentheses, separated by commas
+#First extract each into a column by commas
+#Then only save names in the parentheses
+#Remove duplicates
+
+#first remove comma from Ducks Unlimited, Inc. in contacts and fundername
+EcoAtlas <- EcoAtlas %>%
+  mutate(contacts=str_replace(contacts, "Ducks Unlimited, Inc.","Ducks Unlimited Inc."))
+
+EcoAtlas <- EcoAtlas %>%
+  mutate(fundername=str_replace(fundername, "Ducks Unlimited, Inc.","Ducks Unlimited Inc."))
+
+#then split out contacts by commas
+
+EcoAtlas <- EcoAtlas %>% 
+  mutate(contacts = strsplit(as.character(contacts), ",")) %>%
+  unnest(contacts)
+
+#extract only the org name in the parentheses
+
+EcoAtlas$contactorgs <- regmatches(EcoAtlas$contacts,gregexpr("(?<=\\().*?(?=\\))", EcoAtlas$contacts, perl=TRUE))
+
+#edgelist with funder names
+funderedgelist <- EcoAtlas %>% select(EAid, fundername)
+
+#remove duplicates
+funderedgelist <- funderedgelist %>% 
+  filter(!duplicated(cbind(EAid, fundername)))
+
+#rename fundername to org
+funderedgelist <- funderedgelist %>% rename(org=fundername)
+
+#rename funding programs or variations on same names
+funderedgelist$org <- ifelse(funderedgelist$org=="Cal Fed (historic funding program)", "CALFED Bay-Delta Program", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="California State Parks Habitat Conservation Fund", "California State Parks", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="California Department of Fish and Wildlife" | funderedgelist$org== "CDFW Ecosystem Restoration Program" | funderedgelist$org== "CDFW Fisheries Restoration Grant Program" | funderedgelist$org== "CDFW Prop 1 - Delta Water Quality and Ecosystem Restoration Grant Program" | funderedgelist$org== "CDFW Prop 1 - Watershed Restoration Grant Program" | funderedgelist$org== "CDFW Wetlands Restoration for Greenhouse Gas Reduction Program", "CDFW California Department of Fish and Wildlife", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="CDOT California Environmental License Plate Fund", "CDOT California Department of Transportation", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="California Department of Water Resources" | funderedgelist$org=="CDWR Bay Area Integrated Regional Water Management Plan" | funderedgelist$org=="CDWR FESSRO Delta Ecosystem Enhancement" | funderedgelist$org=="CDWR FESSRO Delta Levees Special Investigations" | funderedgelist$org=="CDWR FESSRO Delta Levees Special Projects" | funderedgelist$org=="CDWR Integrated Regional Water Management Plan" | funderedgelist$org=="CDWR Urban Streams Restoration Program" , "CDWR California Department of Water Resources", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="CNRA California River Parkways Grant Program" | funderedgelist$org=="CNRA Urban Greening Grant Program", "CNRA California Natural Resources Agency", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="Natural Resources Conservation Service" | funderedgelist$org == "NRCS Environmental Quality Incentives Program" | funderedgelist$org == "NRCS Wetland Reserve Program", "NRCS Natural Resources Conservation Service", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="NOAA American Recovery and Reinvestment Act"| funderedgelist$org == "NOAA Coastal and Estuarine Land Conservation Program"| funderedgelist$org=="NOAA Community-Based Restoration" | funderedgelist$org=="NOAA Community-Based Restoration Program", "NOAA National Oceanic and Atmospheric Administration", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="San Francisco Foundation Bay Fund (historic funding program)", "San Francisco Foundation", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="San Mateo Resource Conservation District", "San Mateo County Resource Conservation District", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="State Coastal Conservancy", "SCC State Coastal Conservancy", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="USDT U.S. Department of Transportation, Federal Highway Administration" | funderedgelist$org =="USDT Public Land Highway Discretionary", "USDT U.S. Department of Transportation", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="USFWS - U.S. Fish and Wildlife Service" | funderedgelist$org== "USFWS San Pablo Bay National Wildlife Refuge" | funderedgelist$org== "USFWS Private Stewardship Grant Program" | funderedgelist$org== "USFWS Partners for Fish and Wildlife" | funderedgelist$org== "USFWS North American Wetlands Conservation Act" | funderedgelist$org== "USFWS National Coastal Wetlands Conservation Program" | funderedgelist$org== "USFWS Federal Highways Funding" | funderedgelist$org=="USFWS Don Edwards National Wildlife Refuge" | funderedgelist$org== "USFWS Coastal Program at San Francisco Bay" | funderedgelist$org== "USFWS Challenge Cost Share" | funderedgelist$org=="USFWS - San Francisco Bay National Wildlife Refuge Complex", "USFWS U.S. Fish and Wildlife Service", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="U.S. National Parks Service", "USNPS U.S. National Park Service", funderedgelist$org)
+
+funderedgelist$org <- ifelse(funderedgelist$org=="Wildlife Conservation Board" | funderedgelist$org== "WCB California Riparian Habitat Conservation Program" | funderedgelist$org=="WCB General Fund Wetlands" | funderedgelist$org== "WCB Habitat Enhancement and Restoration Program" | funderedgelist$org== "WCB Inland Wetlands Conservation Program", "WCB Wildlife Conservation Board", funderedgelist$org)
+
+#edgelist with contact orgs (implementers)
+impedgelist <- EcoAtlas %>% select(EAid, contactorgs)
+
+#remove duplicates
+impedgelist <- impedgelist %>% 
+  filter(!duplicated(cbind(EAid, contactorgs)))
+
+#rename contactorgs to org
+impedgelist <- impedgelist %>% rename(org=contactorgs)
+
+#combine same org names as funding
+impedgelist$org <- ifelse(impedgelist$org=="Cal Fed (historic funding program)", "CALFED Bay-Delta Program", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="California State Parks Habitat Conservation Fund", "California State Parks", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="California Department of Fish and Wildlife" | impedgelist$org== "CDFW Ecosystem Restoration Program" | impedgelist$org== "CDFW Fisheries Restoration Grant Program" | impedgelist$org== "CDFW Prop 1 - Delta Water Quality and Ecosystem Restoration Grant Program" | impedgelist$org== "CDFW Prop 1 - Watershed Restoration Grant Program" | impedgelist$org== "CDFW Wetlands Restoration for Greenhouse Gas Reduction Program", "CDFW California Department of Fish and Wildlife", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="CDOT California Environmental License Plate Fund", "CDOT California Department of Transportation", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="California Department of Water Resources" | impedgelist$org=="CDWR Bay Area Integrated Regional Water Management Plan" | impedgelist$org=="CDWR FESSRO Delta Ecosystem Enhancement" | impedgelist$org=="CDWR FESSRO Delta Levees Special Investigations" | impedgelist$org=="CDWR FESSRO Delta Levees Special Projects" | impedgelist$org=="CDWR Integrated Regional Water Management Plan" | impedgelist$org=="CDWR Urban Streams Restoration Program" , "CDWR California Department of Water Resources", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="CNRA California River Parkways Grant Program" | impedgelist$org=="CNRA Urban Greening Grant Program", "CNRA California Natural Resources Agency", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="Natural Resources Conservation Service" | impedgelist$org == "NRCS Environmental Quality Incentives Program" | impedgelist$org == "NRCS Wetland Reserve Program", "NRCS Natural Resources Conservation Service", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="NOAA American Recovery and Reinvestment Act"| impedgelist$org == "NOAA Coastal and Estuarine Land Conservation Program"| impedgelist$org=="NOAA Community-Based Restoration" | impedgelist$org=="NOAA Community-Based Restoration Program", "NOAA National Oceanic and Atmospheric Administration", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="San Francisco Foundation Bay Fund (historic funding program)", "San Francisco Foundation", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="San Mateo Resource Conservation District", "San Mateo County Resource Conservation District", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="State Coastal Conservancy", "SCC State Coastal Conservancy", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="USDT U.S. Department of Transportation, Federal Highway Administration" | impedgelist$org =="USDT Public Land Highway Discretionary", "USDT U.S. Department of Transportation", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="USFWS - U.S. Fish and Wildlife Service" | impedgelist$org== "USFWS San Pablo Bay National Wildlife Refuge" | impedgelist$org== "USFWS Private Stewardship Grant Program" | impedgelist$org== "USFWS Partners for Fish and Wildlife" | impedgelist$org== "USFWS North American Wetlands Conservation Act" | impedgelist$org== "USFWS National Coastal Wetlands Conservation Program" | impedgelist$org== "USFWS Federal Highways Funding" | impedgelist$org=="USFWS Don Edwards National Wildlife Refuge" | impedgelist$org== "USFWS Coastal Program at San Francisco Bay" | impedgelist$org== "USFWS Challenge Cost Share" | impedgelist$org=="USFWS - San Francisco Bay National Wildlife Refuge Complex", "USFWS U.S. Fish and Wildlife Service", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="U.S. National Parks Service", "USNPS U.S. National Park Service", impedgelist$org)
+
+impedgelist$org <- ifelse(impedgelist$org=="Wildlife Conservation Board" | impedgelist$org== "WCB California Riparian Habitat Conservation Program" | impedgelist$org=="WCB General Fund Wetlands" | impedgelist$org== "WCB Habitat Enhancement and Restoration Program" | impedgelist$org== "WCB Inland Wetlands Conservation Program", "WCB Wildlife Conservation Board", impedgelist$org)
+
+
+#combine funding and implementing into one edgelist
+edgelist <- rbind(impedgelist, funderedgelist)
+
+raworgs <- unlist(unique(edgelist$org))
+
+#remove duplicates (funder AND implementer) and NA (character(0))
+edgelist <- edgelist %>% 
+  filter(!duplicated(cbind(EAid, org)))
+
+edgelist <- edgelist[edgelist$org!="", ]
+
+edgelist <- edgelist[edgelist$org!="character(0)",]
+
+#unlist the org names that are a list right now
+edgeorg <- unlist(edgelist$org)
+
+edgelist <- cbind(edgelist, edgeorg)
+edgelist <- edgelist[, -c(2)]
+edgelist <- edgelist %>% rename(org=edgeorg)
+
+#make sure EAid is character
+edgelist$EAid <- as.character(edgelist$EAid)
+
+```
+
+####Build Network----------
+
+```{r create raw network}
+set.seed(9199919)
+#create network from edgelist
+net <- as.network(x=edgelist, # the network object
+                  directed = FALSE, # specify whether the network is directed
+                  hyper=FALSE,
+                 loops = FALSE, # do we allow self ties (should not allow them)
+                  matrix.type = "edgelist", # the type of input
+                  bipartite=TRUE,
+                  bipartite_col="org" #specify that the org column is the actors
+                  )
+#create igraph version
+
+library(igraph)
+
+net2 <- graph.data.frame(edgelist, directed = FALSE)
+bipartite.mapping(net2) #make sure it's bipartite
+V(net2)$type <- bipartite.mapping(net2)$type
+
+```
+
+```{r load node attributes}
+
+#load node attributes with org type, org scale, funding pool and benefits from project descriptions coded manually
+attributes <- read.csv("nodeatts_full.csv")
+
+```
+
+####Project Spatial Analysis-----------
+```{r load project spatial data}
+#load in projects shapefile from EcoAtlas for whole region
+projectsshp <- st_read("habitatprojects.shp")
+
+#figure out current Coordinate Reference System (CRS)
+st_crs(projectsshp)$proj4string
+
+#reproject just in case
+projectsshp <- projectsshp %>% st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84")
+
+#filter to sample of projects from earlier filtering
+#create ID of projectid.siteid
+projectsshp <- projectsshp %>% 
+  unite(shpid, projectid, siteid, sep = ".", remove = FALSE)
+
+#create same ID in attributes file so can match them
+attributes <- attributes %>% unite(shpid, projectid, siteid, sep=".", remove=FALSE)
+
+#filter shapefile to the projects in the attributes file (225)
+finshpprojects <- filter(projectsshp, shpid %in% attributes$shpid)
+#drops to 148 projects with available spatial data
+
+#merge with attributes
+finshpprojects <- left_join(finshpprojects, attributes, by="shpid")
+#final 166 projects (18 had duplicate locations so they are back in final projects list)
+```
+
+```{r calculate project acreage totals}
+#calculate area for 16 projects missing/incomplete data in the 'habitat acres' variable- 4 had acreage listed as linear feet, 3 had acreage listed as miles value 
+#Only 9 of the 16 projects have shapefiles to calculate acreage, drop 5 projects for no acreage values
+
+#calculate acreage for 9 projects from their shapefiles
+finshpprojects$area <- st_area(finshpprojects)
+finshpprojects$area_calc <- drop_units(finshpprojects$area)
+#output is in square metres- covert to acres (4047 m2 per acre)
+finshpprojects$acres_calc <- (finshpprojects$area_calc)/4047
+
+#get data as numeric values
+projectacreage <- finshpprojects %>% select(shpid, acres_calc) %>% st_drop_geometry()
+
+#remove duplicates
+projectacreage <- projectacreage %>% 
+  filter(!duplicated(cbind(shpid, acres_calc)))
+
+#add those estimates into existing acreage
+attributes2 <- left_join(attributes, projectacreage, by="shpid")
+attributes2$acreage <- ifelse(is.na(attributes2$newacres)==TRUE, attributes2$acres_calc, attributes2$newacres)
+
+#note 5 projects missing acreage values do not have shapefiles so they cannot be estimated and will not have habitat acreage
+
+#check if the acreage calculations are accurate
+correlate(attributes2$habitatamount, attributes2$acres_calc)
+#0.893 correlation
+
+acrereg <- lm(acres_calc ~ habitatamount, data = attributes2)
+summary(acrereg)
+#coefficient is 1.033 with p<2e-16 and Adjusted R Square of 0.7959
+
+```
+
+```{r load bay-delta boundaries}
+#download bay-delta county boundaries to clip other shapefiles to
+#note that CalEnviroScreen 4.0 uses 2010 census tract boundaries (see https://oehha.ca.gov/media/downloads/calenviroscreen/report/calenviroscreen40reportf2021.pdf)
+#so use those and a 5 year ACS estimate that are based on 2010 boundaries (e.g. 2015-2019)
+
+#get all counties first
+counties <- counties(state="CA", cb=TRUE, year=2010)
+
+#select only bay delta counties (12 total- 9 in bay and 5 in delta with Contra Costa and Solano in both)
+#use dplyr filter to select by county name
+baydelta <- counties %>% filter(NAME %in% c("Alameda", "Contra Costa", "San Mateo", "Santa Clara", "Sacramento", "Solano", "Yolo", "Marin", "Napa", "Sonoma", "San Francisco", "San Joaquin"))
+
+#transform CRS of both to ensure they match
+st_crs(finshpprojects)==st_crs(baydelta) #check and find that currently they don't match
+
+#use st_transform to put them in the same CRS- longlat projection and WGS84
+baydelta.wgs84 <- baydelta%>%
+            st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84")
+st_crs(finshpprojects)==st_crs(baydelta.wgs84) #now true
+
+```
+
+```{r load calenviroscreen data}
+#load in all CA calenviroscreen tracts
+ces_ca <- st_read("calenviroscreen/CES4 Final Shapefile.shp")
+
+#reproject
+ces_ca.wgs84 <- ces_ca %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
+
+#clip to bay-delta county boundaries
+ces <- ms_clip(target = ces_ca.wgs84, clip = baydelta.wgs84, remove_slivers = TRUE)
+
+```
+
+```{r load biodiversity data}
+#load biodiversity data from CDFW
+fullbio <- st_read("ACE/Species_Biodiversity_ACE_[ds2769].shp")
+
+#reproject
+fullbio.wgs84 <- fullbio  %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
+
+#clip to correct area (Bay-Delta Counties)
+bio <- ms_clip(target=fullbio.wgs84, clip=baydelta.wgs84, remove_slivers=TRUE)
+```
+
+```{r biodiversity spatial interpolation on project boundaries}
+#biodiversity interpolation
+#use areal package for this
+#validate function to confirm all requirements are there
+ar_validate(bio, finshpprojects, varList="bptn_nr", verbose=TRUE)
+
+#need to transform both into planar CRS
+biodiverse.utm <-  bio %>%  st_transform(crs = "+proj=utm +zone=10 +datum=NAD83 +ellps=GRS80")
+projects.utm <-  finshpprojects %>%    st_transform(crs = "+proj=utm +zone=10 +datum=NAD83 +ellps=GRS80")
+
+#complete interpolation on the normalized score of biodiversity for the habitat hexagon relative to the eco region it is in
+projbio <- aw_interpolate(projects.utm, tid = shpid, source = biodiverse.utm, sid = OBJECTID,
+                           weight = "sum", output = "sf", 
+                          intensive = "SpBioWtEco")
+#drop geometry and only save the scores and project id so that we can merge it with existing project attribute data
+projbio <- projbio %>% st_drop_geometry() %>% dplyr::select("shpid", "pname", "SpBioWtEco")
+```
+
+```{r calenviroscreen spatial interpolation on project boundaries}
+#transform CRS so it will match
+ces.utm <-  ces %>%  st_transform(crs = "+proj=utm +zone=10 +datum=NAD83 +ellps=GRS80")
+
+#interpolation for the CI score
+CalEnviro.aw <- aw_interpolate(projects.utm, tid = shpid, source = ces.utm, sid = Tract,
+                           weight = "sum", output = "sf", 
+                           intensive = c("CIscore"))
+#drop geometry again
+projCES <- CalEnviro.aw %>% st_drop_geometry() %>% dplyr::select("shpid", "pname", "CIscore", "ImpWatBod")
+
+#convert -999 values to NA
+projCES$CalEnvscore <- ifelse(projCES$CIscore<0, NA, projCES$CIscore)
+
+#remove duplicates from bio and CES interpolations 
+projbio <- projbio %>% 
+  filter(!duplicated(cbind(shpid, pname,SpBioWtEco)))
+projCES <- projCES %>%   filter(!duplicated(cbind(shpid, pname, CalEnvscore)))
+
+#merge back into project attributes
+attributes2 <- left_join(attributes2, projbio, by="shpid")
+attributes2 <- left_join(attributes2, projCES, by="shpid")
+
+#note there are 10 project locations for which CES scores are unavailable, 2 for which biodiversity scores are unavailable [these 2 also lack CES]
+# a total of 10 of the projects with spatial boundaries (at 7 project site boundaries, 3 are in identical locations) are missing spatial data
+```
+
+```{r spatial interpolation on project coordinates}
+#For all projects without site boundaries, attempt to obtain spatial data values based on point coordinate locations because lacking full project boundaries
+
+#separate projects where interpolation on area was possible
+projatts_wspatialbounds <- attributes2[1:225, ]
+projatts_wspatialbounds <- projatts_wspatialbounds %>% filter(!is.na(projatts_wspatialbounds$CalEnvscore)) #156 projects meaning 69 projects are missing spatial boundaries
+
+#now find remaining projects without boundaries
+
+proj_coords_nospatbound <- attributes2
+proj_coords_nospatbound <- subset(proj_coords_nospatbound, !(shpid %in% projatts_wspatialbounds$shpid))
+proj_coords_nospatbound <- proj_coords_nospatbound %>% filter(!is.na(proj_coords_nospatbound$projectid)) #69 projects
+
+#check if those 69 projects with no spatial boundaries have coordinates
+#will simply use the value of the tracts/hexagons they are located in as a proxy for the values (no area-weighted interpolation)
+summary(proj_coords_nospatbound$latitude) #55 NAs, only 14 of the projects without spatial boundaries have coordinates we can use
+# thus can do interpolation for 156+14 or 170 projects, minus the 10 with no CES or biodiversity data for 160 final project sample
+proj_coords_nospatbound <- proj_coords_nospatbound %>% filter(!is.na(proj_coords_nospatbound$latitude))
+
+#make spatial data for the 14 projects with coordinates
+projs_coords.sf <- proj_coords_nospatbound %>%
+                  st_as_sf(coords = c("longitude", "latitude"), 
+                            crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
+projs_coords.utm <-  projs_coords.sf %>%  st_transform(crs = "+proj=utm +zone=10 +datum=NAD83 +ellps=GRS80") #transform CRS so it will match
+
+#for POINTS that fall within CES, adds ATTRIBUTES, retains ALL pts if left=TRUE, otherwise uses inner_join
+projcoords_ces <- st_join(projs_coords.utm, left = TRUE, ces.utm["CIscore"]) # join points
+#gets us four additional projects with CI score
+projcoords_bio <- st_join(projs_coords.utm, left = TRUE, biodiverse.utm["SpBioWtEco"]) # join points
+#gets us 11 additional projects with biodiversity score
+
+#add these values to main attributes
+projcoords_atts <- projcoords_ces %>% st_drop_geometry()
+projcoords_atts$CalEnvscore <- ifelse(projcoords_atts$CIscore.y <0, NA, projcoords_atts$CIscore.y)
+projcoords_atts <- left_join(projcoords_atts, projcoords_bio, by="nodes")
+projcoords_atts <- projcoords_atts %>% select(nodes, shpid.x, CalEnvscore.x, SpBioWtEco.y)
+attributes2 <- left_join(attributes2, projcoords_atts, by="nodes")
+
+#create final attributes for CES and Bio combining both
+attributes2$finCES <- ifelse(is.na(attributes2$CalEnvscore)==TRUE, attributes2$CalEnvscore.x, attributes2$CalEnvscore)
+
+attributes2$finBIO <- ifelse(is.na(attributes2$SpBioWtEco)==TRUE, attributes2$SpBioWtEco.y, attributes2$SpBioWtEco)
+
+#these are then exported to arcGIS for flood risk analysis
+#first export 14 coordinates projects
+#st_write(projs_coords.sf, "coordinateprojs.shp")
+#export other projects with shapefile boundaries for flood risk analysis
+#st_write(finshpprojects, "boundaryprojs.shp")
+
+```
+
+```{r load flood risk data}
+#this data was already prepared in ArcGIS
+#read in flood risk data from using zonal statistics on rasters in arcgispro
+projcoordsFLOOD <- read.csv("floodrisk/projcoordsfloodrisk.csv") #flood depth calculated for 14 projects with coordinates
+projboundFLOOD <- read.csv("floodrisk/projboundsfloodrisk.csv") #flood depth calculated for 156 projects with shapefile boundaries
+
+#merge in project boundary flood data
+projboundFLOOD$shpid <- as.character(projboundFLOOD$shpid)
+attributes2$shpid <-as.character(attributes2$shpid)
+attributes2 <- left_join(attributes2, projboundFLOOD, by="shpid")
+
+#merge in project coordinates flood data
+projcoordsFLOOD$EAid <- as.character(projcoordsFLOOD$EAid)
+projcoordsFLOOD <- rename(projcoordsFLOOD, avgflood=MEAN)
+attributes2 <- left_join(attributes2, projcoordsFLOOD, by="EAid")
+
+attributes2$finFLOOD <- ifelse(is.na(attributes2$MEAN)==TRUE, attributes2$avgflood, attributes2$MEAN)
+
+#final total for flood data
+summary(attributes2$finFLOOD) #100 missing 
+sum(!is.na(attributes2$finFLOOD)==TRUE) #125 with flood data
+
+sum(!is.na(attributes2$finFLOOD)==TRUE &  !is.na(attributes2$finCES)==TRUE & !is.na(attributes2$finBIO))
+#119 projects have all available data for spatial benefits
+
+#assume zero flood risk if lie outside the rasters (no bay-delta level flooding)
+attributes2$finFLOOD2 <- if_else(is.na(attributes2$finFLOOD)==TRUE, 0, attributes2$finFLOOD)
+
+#put NA back for the actor nodes in the attribute data as they lack any project attribute values
+attributes2$finFLOOD3 <- if_else(is.na(attributes2$projectid)==TRUE, NA, attributes2$finFLOOD2)
+
+sum(!is.na(attributes2$finFLOOD3)==TRUE &  !is.na(attributes2$finCES)==TRUE & !is.na(attributes2$finBIO))
+#160 projects now have all available data for spatial benefits
+
+#final spatial data for 160 projects (of original 225 projects) is finCES, finBIO, finFLOOD3, and acreage
+```
+
+####Final Node Attributes---------
+```{r assign final node attributes to network}
+#tidal and delta habitat binary variables
+
+#tidal habitat coding based on subhabitat type
+attributes2$tidal <- if_else(is.na(attributes2$subhabitattype)==TRUE, NA, if_else(attributes2$subhabitattype=="Tidal flat"|attributes2$subhabitattype=="Tidal marsh"|attributes2$subhabitattype=="Emergent Saline to Brackish Marsh", 1, 0))
+
+#delta location coding based on project admin region
+attributes2$deltaregion <- if_else(is.na(attributes2$adminregion)==TRUE, NA, if_else(attributes2$adminregion=="Sacramento-San Joaquin Delta and Suisun Marsh (Prop 1)" | attributes2$adminregion=="Central Valley Joint Venture"| attributes2$adminregion=="Sacramento-San Joaquin Delta and Suisun Marsh", 1, 0))
+
+#assign all attributes to network
+
+#accidentally didn't name the org type and scale columns, rename those now
+attributes2 <- attributes2 %>% rename(orgtype=X.1)
+attributes2 <- attributes2 %>% rename(orgscale=X.2)
+
+attributes2[1:225,]$orgtype=NA
+attributes2[1:225,]$orgscale=NA
+
+#create binaries for local and gov org scale and type
+attributes2$localorg <- if_else(is.na(attributes2$orgscale)==TRUE, NA, if_else(attributes2$orgscale=="local", 1, 0))
+attributes2$govorg <- if_else(is.na(attributes2$orgtype)==TRUE, NA, if_else(attributes2$orgtype=="gov", 1, 0))
+
+#new org type and scale (collapse to fewer categories)
+
+attributes2$orgtype2 <- ifelse(attributes2$orgtype=="foundation"|attributes2$orgtype=="coalition"|attributes2$orgtype=="edu"|attributes2$orgtype=="legal", "other", attributes2$orgtype)
+
+attributes2$orgtype3 <- ifelse(attributes2$orgtype2=="other"|attributes2$orgtype2=="private", "other", attributes2$orgtype2)
+
+attributes2$orgscale2 <- ifelse(attributes2$orgscale=="regional"|attributes2$orgscale=="state", "regional/state", attributes2$orgscale)
+attributes2$orgscale2 <- ifelse(attributes2$orgscale2=="other"|attributes2$orgscale2=="national", "national/other", attributes2$orgscale2)
+
+#rescale acres to thousand acres
+attributes2$thousacres <- (attributes2$acreage)/1000
+
+#now assign all attributes to network
+network::set.vertex.attribute(net, "name", attributes2$nodes)
+#org attributes
+network::set.vertex.attribute(net, "local", attributes2$localorg)
+network::set.vertex.attribute(net, "gov", attributes2$govorg)
+network::set.vertex.attribute(net, "implementer", attributes2$implementer)
+network::set.vertex.attribute(net, "fundingpools", attributes2$fundpools)
+#project attributes
+network::set.vertex.attribute(net, "tidal", attributes2$tidal)
+network::set.vertex.attribute(net, "delta", attributes2$deltaregion)
+network::set.vertex.attribute(net, "totalES", attributes2$SUM_benefits)
+network::set.vertex.attribute(net, "floodrisk", attributes2$finFLOOD3)
+network::set.vertex.attribute(net, "biodiversity", attributes2$finBIO)
+network::set.vertex.attribute(net, "CES", attributes2$finCES)
+network::set.vertex.attribute(net, "acres", attributes2$acreage)
+network::set.vertex.attribute(net, "thousacres", attributes2$thousacres)
+network::set.vertex.attribute(net, "duration", attributes2$duration)
+network::set.vertex.attribute(net, "budget", attributes2$Sum_fund)
+network::set.vertex.attribute(net, "startyear", attributes2$startyear)
+network::set.vertex.attribute(net, "orgtype", attributes2$orgtype3)
+network::set.vertex.attribute(net, "orgtypelong", attributes2$orgtype2)
+network::set.vertex.attribute(net, "orgscale", attributes2$orgscale2)
+```
+
+```{r create boundary spanner organization attribute}
+#determine boundary spanners and assign attribute
+#create bay and delta networks
+
+baynet <- network::get.inducedSubgraph(net,v=which(net%v%'delta'==0|is.na(net%v% 'delta')==TRUE))
+
+deltanet <- network::get.inducedSubgraph(net,v=which(net%v%'delta'==1|is.na(net%v% 'delta')==TRUE))
+
+
+#remove isolates (orgs)
+
+#Delete Isolates in Delta and Bay Networks
+#need to remove the actors who are not in the network
+bayisolates <- sna::isolates(baynet) #8 nodes
+deltaisolates <- sna::isolates(deltanet) #150 nodes 
+baynet2 <- network::delete.vertices(baynet, bayisolates)
+deltanet2 <- network::delete.vertices(deltanet, deltaisolates) 
+
+baynodes <- baynet2 %v% "vertex.names"
+deltanodes <- deltanet2 %v% "vertex.names"
+
+#now identify the orgs present in both the bay and delta networks
+#create an attribute for them that is labeled "boundary spanner"
+
+boundaryspanners <- which(deltanodes%in%baynodes)
+#same but reverse
+which(baynodes %in% deltanodes)
+#11 total nodes
+boundaryspanners
+#inbaynet2: 169, 171, 175, 180, 181, 182, 187, 211, 240, 241, 245
+#indeltanet2: 58, 59, 60, 61, 62, 63, 66, 71, 73, 74, 76
+
+baynet2 %v% 'vertex.names'
+
+#corresponds to SCC State Coastal Conservancy, CDFW California Department of Fish and Wildlife, USFWS U.S. Fish and Wildlife Service, WCB Wildlife Conservation Board, CDWR California Department of Water Resources, Solano Land Trust, Sacramento-San Joaquin Delta Conservancy, Unknown/Unspecified, Unknown/Unspecified Private Funder, U.S. Environmental Protection Agency, CNRA California Natural Resources Agency
+
+#assign to attributes
+attributes2$boundaryspanner <- NA
+attributes2[(226:394), ]$boundaryspanner = 0
+
+attributes2$orgboundaryspanner <- ifelse(attributes2$nodes=="CDWR California Department of Water Resources" | attributes2$nodes=="CDFW California Department of Fish and Wildlife" | attributes2$nodes=="SCC State Coastal Conservancy"| attributes2$nodes=="CNRA California Natural Resources Agency" | attributes2$nodes=="U.S. Environmental Protection Agency" | attributes2$nodes=="Solano Land Trust" | attributes2$nodes=="Sacramento-San Joaquin Delta Conservancy" | attributes2$nodes=="USFWS U.S. Fish and Wildlife Service" | attributes2$nodes=="WCB Wildlife Conservation Board", 1, attributes2$boundaryspanner)
+
+#assign to network as attribute
+attributes2$orgboundaryspanner <- as.numeric(attributes2$orgboundaryspanner)
+network::set.vertex.attribute(net, "boundaryspanner", attributes2$orgboundaryspanner)
+
+#redo the subsetting so boundary spanner attribute is in delta and bay networks
+#subsetting Delta and Bay Networks
+baynet <- network::get.inducedSubgraph(net,v=which(net%v%'delta'==0|is.na(net%v% 'delta')==TRUE))
+
+deltanet <- network::get.inducedSubgraph(net,v=which(net%v%'delta'==1|is.na(net%v% 'delta')==TRUE))
+
+
+#remove isolates (orgs)
+
+#Delete Isolates in Delta and Bay Networks
+#need to remove the actors who are not in the network
+bayisolates <- sna::isolates(baynet) #8 nodes
+deltaisolates <- sna::isolates(deltanet) #150 nodes
+baynet2 <- network::delete.vertices(baynet, bayisolates)
+deltanet2 <- network::delete.vertices(deltanet, deltaisolates) 
+
+#check all attributes transferred to subnetworks
+network::list.vertex.attributes(baynet2)
+network::list.vertex.attributes(deltanet2)
+```
+
+#### Network Descriptives------
+```{r overall network size}
+#Whole network measures
+#Estuary wide
+network.size(net) #394 nodes
+gden(net, mode="graph") #0.009971455 #density
+network.edgecount(net) #772 edges
+network.dyadcount(net) #38025 node pairs
+
+#Bay
+network.size(baynet2) #329 nodes
+gden(baynet2, mode="graph") #0.01226926 #density
+network.edgecount(baynet2) #662 edges
+network.dyadcount(baynet2) #27048 node pairs
+
+#Delta
+network.size(deltanet2) #76 nodes
+gden(deltanet2, mode="graph") #0.03859649 #density
+network.edgecount(deltanet2) #110 edges
+network.dyadcount(deltanet2) #1083 node pairs
+```
+
+```{r two mode degree}
+#Two mode degree
+#code from Opsahl et al. 2010: https://toreopsahl.com/tnet/two-mode-networks/node-centrality/ 
+
+#convert network to incidence matrix
+incidence.mat <- as_incidence_matrix(net2)
+
+
+# Calculate Two Mode Degree
+library(nos)
+#create edgelist in tnet format
+est_edgelist_tnet <- freqMat_2_edge(incidence.mat, bip = TRUE, sp_nam = TRUE)
+
+#calculate project degree
+outdegreeP <- degree_tm(est_edgelist_tnet, measure="degree")
+
+#to calculate org degree need to flip the edgelist (orgs first)
+#transpose the matrix
+matrix1_transpose = t(incidence.mat)
+#convert to tnet edgelist
+edgelist_actfirst <- freqMat_2_edge(matrix1_transpose, bip = TRUE, sp_nam = TRUE)
+#calculate org two mode degree
+outdegreeA <- degree_tm(edgelist_actfirst, measure="degree")
+#make node numbers match those in whole network (projects first)
+outdegreeA$node <- 226:394
+#combine into one dataframe
+TWOmodedegree <- rbind(outdegreeP, outdegreeA)
+
+attributes2$node <- attributes2$X.3
+attributes2 <- merge(attributes2, TWOmodedegree, by="node")#merge with project names/ids
+
+#histograms of degree distributions
+hist(attributes2$degree, breaks=50, xlab="Two Mode Degree", main="Degree Distribution of Bipartite Network (Projects and Actors)")
+hist(outdegreeA$degree, breaks=50, xlab="Two Mode Degree", main="Actor Degree Centrality (to Projects)")
+hist(outdegreeP$degree, breaks=50, xlab="Two Mode Degree", main="Project Degree Centrality (to Actors)")
+
+#descriptive statistics on two mode degree
+summary(TWOmodedegree$degree)
+sd(TWOmodedegree$degree)
+
+summary(outdegreeA$degree)
+sd(outdegreeA$degree)
+
+summary(outdegreeP$degree)
+sd(outdegreeP$degree)
+
+#Set Degree Vertex Attributes in Network
+network::set.vertex.attribute(net, "degree", attributes2$degree)
+```
+
+```{r bipartite measures}
+
+#density of each network
+network.density(net, discount.bipartite=T) #0.02030243
+network.density(baynet2, discount.bipartite=T) #0.02447501
+network.density(deltanet2, discount.bipartite=T) #0.1015697
+
+#bipartite package statistics for cluster coefficient and nestedness of the whole estuary network
+library(bipartite)
+networklevel(incidence.mat, index="binary")
+
+
+#normalized degree of whole network
+ND <- ND(incidence.mat)
+NetStats_Projects <- as.data.frame(ND$lower)
+NetStats_Actors <- as.data.frame(ND$higher)
+
+#betweeness centrality of whole network
+BC <- BC(incidence.mat, rescale=TRUE, cmode="undirected", weighted=FALSE)
+BC_Projects <- as.data.frame(BC$lower)
+BC_Actors <- as.data.frame(BC$higher)
+
+#closeness centrality of the whole network
+CC <- CC(incidence.mat, cmode="suminvundir", rescale=TRUE)
+CC_Projects <- as.data.frame(CC$lower)
+CC_Actors <- as.data.frame(CC$higher)
+
+#combine all these measures (normalized degree, closeness and betweenness centrality) into two dataframes for projects and actors and rename the columns
+
+NetStats_Projects <- cbind(NetStats_Projects, BC_Projects, CC_Projects)
+colnames(NetStats_Projects[1])="ND"
+colnames(NetStats_Projects[2])="BC"
+colnames(NetStats_Projects[3])="CC"
+NetStats_Actors <- cbind(NetStats_Actors, BC_Actors, CC_Actors)
+colnames(NetStats_Actors[1])="ND"
+colnames(NetStats_Actors[2])="BC"
+colnames(NetStats_Actors[3])="CC"
+
+#get summary statistics of each of the projects and actors measures
+summary(NetStats_Projects$ND)
+sd(NetStats_Projects$ND)
+summary(NetStats_Projects$BC)
+sd(NetStats_Projects$BC)
+summary(NetStats_Projects$CC)
+sd(NetStats_Projects$CC)
+
+
+summary(NetStats_Actors$ND)
+sd(NetStats_Actors$ND)
+summary(NetStats_Actors$BC)
+sd(NetStats_Actors$BC)
+summary(NetStats_Actors$CC)
+sd(NetStats_Actors$CC)
+
+#use birankr package for whole network (first get stats for projects and then for orgs/actors)
+#it calculates measures for the first column of the edgelist (which is projects)
+biprank_projects <- bipartite_rank(edgelist)
+birank_projects <- birankr::br_birank(edgelist)
+pagerank_projects <- birankr::pagerank(edgelist)
+
+#flip the edgelist so now actors/orgs are in column 1 so birankr will calculate those
+actedge <- as.data.frame(cbind(edgelist$org, edgelist$EAid))
+
+biprank_acts <- bipartite_rank(actedge)
+birank_acts <- birankr::br_birank(actedge)
+pagerank_acts <- birankr::pagerank(actedge)
+```
+
+####Network Visual Plots-------
+```{r network plots}
+#assign a new vertex attribute that will be the vertex name labels on the plot, it will be a blank for all nodes unless they are a high enough degree node to get a label (reduces clutter)
+
+attributes2$degree <- as.numeric(attributes2$degree)
+#use ifelse so only those with sufficiently high degree (>15 based on the distribution) get a label (from the abbreviation variable so not using full names)
+attributes2$label <- if_else(attributes2$degree>15, attributes2$nodes, "")
+
+network::set.vertex.attribute(net, "label", attributes2$label)
+
+#filter the data to the delta and bay and assign attributes to those networks too to plot them
+plot_nodesDelta <- attributes2 %>% filter(nodes %in% deltanodes)
+network::set.vertex.attribute(deltanet2, "label", plot_nodesDelta$label)
+
+plot_nodesBay <- attributes2 %>% filter(nodes %in% baynodes)
+network::set.vertex.attribute(baynet2, "label", plot_nodesBay$label)
+
+#have to reorder the plot_all nodes dataframes to be in order of the vertices in order for this to plot correctly 
+#plot network with node size proportional to degree (divide by 6 so smaller size for the plot) and label those with degree >15
+sna::gplot(net, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(net %v% "degree")/12, label=(net %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+#plot bay network with node size proportional to degree (divide by 20 so smaller size for the plot) and label those with degree >14
+sna::gplot(baynet2, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(baynet2 %v% "degree")/20, label=(baynet2 %v% "label"), label.cex=0.45, label.pos=7, displayisolates = F, jitter=T)
+
+#plot delta network with node size proportional to degree (divide by 6 so smaller size for the plot) and label those with degree >15
+sna::gplot(deltanet2, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex= ((deltanet2 %v% "degree")/6), label=deltanet2 %v% "label", label.cex=0.6, label.pos=7, displayisolates = F, jitter=T)
+
+```
+
+####Subset Network for TERGMs----------
+```{r create spatial network for TERGM}
+#identify which projects are missing spatial data by creating binary variables indicating when a project does not have calenviroscreen score, flood depth, or biodiversity need from earlier areal interpolation
+attributes2$blankej <- ifelse(is.na(attributes2$finCES), 1, 0)
+attributes2$blankflood <- ifelse(is.na(attributes2$finFLOOD3), 1, 0)
+attributes2$blankbio <- ifelse(is.na(attributes2$finBIO), 1, 0)
+
+attributes2$blankej[226:394] <- 0
+attributes2$blankflood[226:394] <- 0
+attributes2$blankbio[226:394] <- 0
+
+network::set.vertex.attribute(net, "noCI", attributes2$blankej)
+network::set.vertex.attribute(net, "noflood", attributes2$blankflood)
+network::set.vertex.attribute(net, "nobio", attributes2$blankbio)
+
+#find projects that have all spatial data, get vector of their names, will subset only those from the network to get a network with projects that all have spatial data terms
+spatialnodes <- attributes2 %>% filter(attributes2$blankbio==0 & attributes2$blankej==0 & attributes2$blankflood==0)
+
+spatialnodes <- spatialnodes %>% select(nodes)
+spatialnodes <- as.vector(spatialnodes)
+spatialnodes <- unlist(spatialnodes)
+
+#only select these nodes in the network
+spatialnet <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% spatialnodes))
+fullresnodes <- spatialnet %v% "vertex.names" #save those actors into the fullresnodes list
+
+#remove all other isolates (actors that worked only on projects without spatial data)
+spatialisolates <- sna::isolates(spatialnet) #31 actors
+spatialnet2 <- network::delete.vertices(spatialnet, spatialisolates)
+
+```
+
+```{r spatial network size}
+#get network level statistics for the networks where all projects (and associated actors) without spatial data are removed (these are the networks the main ERGMs are run on)
+network.size(spatialnet2) #298 nodes
+gden(spatialnet2, mode="graph") #0.01242854
+network.edgecount(spatialnet2) #550 edges
+network.dyadcount(spatialnet2) #22080 node pairs
+
+```
+
+```{r create TERGM time step edgelists}
+set.seed(898377765)
+#split up edgelist data into 6 time periods and create as lists
+#start by assigning time period variable to the projects in the new edgelist
+edges2 <- edgelist
+#make edgelist project id character rather than numeric
+edges2$EAid <- as.character(edges2$EAid)
+#remove duplicates (if org was both funder and implementer)
+edges2 <- distinct(edges2)
+#add project start year
+projectyears <- attributes2 %>% select(EAid, startyear)
+projectyears <- projectyears %>% filter(!is.na(EAid)==TRUE)
+edges3 <- inner_join(edges2, projectyears, by="EAid")
+edges3 <- edges3 %>% filter(startyear!="")
+
+edges3$timestep <- ifelse(edges3$startyear<1988 & edges3$startyear>1981, 0, ifelse(edges3$startyear<1994 & edges3$startyear>1987, 1, ifelse(edges3$startyear<2000 & edges3$startyear>1993, 2, ifelse(edges3$startyear>1999 & edges3$startyear<2006, 3, ifelse(edges3$startyear>2005 & edges3$startyear<2012, 4, ifelse(edges3$startyear>2011 & edges3$startyear<2018, 5, ifelse(edges3$startyear >2017 & edges3$startyear<2023, 6, NA)))))))
+
+
+#split up the edgelists by timesteps
+#combine edgelists so each sequential time step is all previous ties
+#step0- 1980 to 1987
+step0edge <- edges3 %>% filter(timestep==0)
+
+#step1- 1988 to 1993
+step1edge <- edges3 %>% filter(timestep==1)
+
+#step2- 1994 to 1999
+step2edge <- edges3 %>% filter(timestep==2)
+
+#step3- 2000 to 2005
+step3edge <- edges3 %>% filter(timestep==3)
+
+#step4- 2006 to 2011
+step4edge <- edges3 %>% filter(timestep==4)
+
+#step 5- 2012 to 2017
+step5edge <- edges3 %>% filter(timestep==5)
+
+#step 6- 2018 to 2023 
+step6edge <- edges3 %>% filter(timestep==6)
+
+```
+
+
+```{r subset network for tergm time steps}
+#subset the network into these time steps
+#step 0  (and NA then remove isolates & 1 project from 1980)
+step0nodes <- c(step0edge$EAid, step0edge$org)
+step0nodes <- as.vector(step0nodes)
+step0nodes <- as.data.frame(step0nodes)
+step0nodes <- distinct(step0nodes)
+step0nodes <- as.vector(step0nodes)
+step0nodes <- unlist(step0nodes)
+step0net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step0nodes))
+
+
+#step 1 
+step1nodes <- c(step1edge$EAid, step1edge$org)
+step1nodes <- as.vector(step1nodes)
+step1nodes <- as.data.frame(step1nodes)
+step1nodes <- distinct(step1nodes)
+step1nodes <- as.vector(step1nodes)
+step1nodes<- unlist(step1nodes)
+step1net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step1nodes))
+
+#step 2 
+step2nodes <- c(step2edge$EAid, step2edge$org)
+step2nodes <- as.vector(step2nodes)
+step2nodes <- as.data.frame(step2nodes)
+step2nodes <- distinct(step2nodes)
+step2nodes <- as.vector(step2nodes)
+step2nodes<- unlist(step2nodes)
+step2net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step2nodes))
+
+
+#step 3 
+step3nodes <- c(step3edge$EAid, step3edge$org)
+step3nodes <- as.vector(step3nodes)
+step3nodes <- as.data.frame(step3nodes)
+step3nodes <- distinct(step3nodes)
+step3nodes <- as.vector(step3nodes)
+step3nodes<- unlist(step3nodes)
+step3net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step3nodes))
+
+#step 4 
+step4nodes <- c(step4edge$EAid, step4edge$org)
+step4nodes <- as.vector(step4nodes)
+step4nodes <- as.data.frame(step4nodes)
+step4nodes <- distinct(step4nodes)
+step4nodes <- as.vector(step4nodes)
+step4nodes<- unlist(step4nodes)
+step4net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step4nodes))
+
+#step 5 
+step5nodes <- c(step5edge$EAid, step5edge$org)
+step5nodes <- as.vector(step5nodes)
+step5nodes <- as.data.frame(step5nodes)
+step5nodes <- distinct(step5nodes)
+step5nodes <- as.vector(step5nodes)
+step5nodes<- unlist(step5nodes)
+step5net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step5nodes))
+
+#step 6
+step6nodes <- c(step6edge$EAid, step6edge$org)
+step6nodes <- as.vector(step6nodes)
+step6nodes <- as.data.frame(step6nodes)
+step6nodes <- distinct(step6nodes)
+step6nodes <- as.vector(step6nodes)
+step6nodes<- unlist(step6nodes)
+step6net <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step6nodes))
+
+#save as list 
+estnets <- list(step0net, step1net, step2net, step3net, step4net, step5net, step6net)
+
+```
+
+```{r subset spatial network for tergm time steps}
+#time step 0
+step0spatial <- get.inducedSubgraph(step0net,v=which(step0net%v%'vertex.names' %in% spatialnodes))
+step0spatialisolates <- sna::isolates(step0spatial)
+step0spatial <- network::delete.vertices(step0spatial, step0spatialisolates)
+sna::gplot(step0spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step0spatial %v% "degree")/10, label=(step0spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step0spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=4, displayisolates = T, jitter=T)
+
+#time step 1
+step1spatial <- get.inducedSubgraph(step1net,v=which(step1net%v%'vertex.names' %in% spatialnodes))
+step1spatialisolates <- sna::isolates(step1spatial)
+step1spatial <- network::delete.vertices(step1spatial, step1spatialisolates)
+sna::gplot(step1spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step1spatial %v% "degree")/10, label=(step1spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step1spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=2, displayisolates = T, jitter=T)
+
+#time step 2
+step2spatial <- get.inducedSubgraph(step2net,v=which(step2net%v%'vertex.names' %in% spatialnodes))
+step2spatialisolates <- sna::isolates(step2spatial)
+step2spatial <- network::delete.vertices(step2spatial, step2spatialisolates)
+sna::gplot(step2spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step2spatial %v% "degree")/10, label=(step2spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step2spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=0.75, displayisolates = T, jitter=T)
+
+#time step 3
+step3spatial <- get.inducedSubgraph(step3net,v=which(step3net%v%'vertex.names' %in% spatialnodes))
+step3spatialisolates <- sna::isolates(step3spatial)
+step3spatial <- network::delete.vertices(step3spatial, step3spatialisolates)
+sna::gplot(step3spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step3spatial %v% "degree")/10, label=(step3spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step3spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=0.5, displayisolates = T, jitter=T)
+
+#time step 4
+step4spatial <- get.inducedSubgraph(step4net,v=which(step4net%v%'vertex.names' %in% spatialnodes))
+step4spatialisolates <- sna::isolates(step4spatial)
+step4spatial <- network::delete.vertices(step4spatial, step4spatialisolates)
+sna::gplot(step4spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step4spatial %v% "degree")/10, label=(step4spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step4spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=0.50, displayisolates = T, jitter=T)
+
+#time step 5
+step5spatial <- get.inducedSubgraph(step5net,v=which(step5net%v%'vertex.names' %in% spatialnodes))
+step5spatialisolates <- sna::isolates(step5spatial)
+step5spatial <- network::delete.vertices(step5spatial, step5spatialisolates)
+sna::gplot(step5spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step5spatial %v% "degree")/10, label=(step5spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step5spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=0.5, displayisolates = T, jitter=T)
+
+#time step 6
+step6spatial <- get.inducedSubgraph(step6net,v=which(step6net%v%'vertex.names' %in% spatialnodes))
+step6spatialisolates <- sna::isolates(step6spatial)
+step6spatial <- network::delete.vertices(step6spatial, step6spatialisolates)
+sna::gplot(step6spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=(step5spatial %v% "degree")/10, label=(step5spatial %v% "label"), label.cex=0.5, label.pos=7, displayisolates = T, jitter=T)
+
+sna::gplot(step6spatial, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=0.5, displayisolates = T, jitter=T)
+
+#relist
+estspatialnets <- list(step0spatial, step1spatial, step2spatial, step3spatial, step4spatial, step5spatial, step6spatial)
+```
+
+####TERGMs------
+
+####GOF and Decay Value Checks-------
+
+####Bonferroni Corrections--------
+
+####Regular ERGM for Comparison--------
+
+#### Correlations----------
+
+
+####Additional Descriptives--------
+
+
+####Additional Figures and  Mapping---------
