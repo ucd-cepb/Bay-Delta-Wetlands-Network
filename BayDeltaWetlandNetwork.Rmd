@@ -1127,6 +1127,23 @@ estspatialnets <- list(step0spatial, step1spatial, step2spatial, step3spatial, s
 ```
 
 ####TERGMs------
+```{r nonspatial main TERGM}
+set.seed(9199919)
+#Control Model
+#TERGM_control <- btergm(estnets ~ edges +gwb2degree(0.5, fixed=TRUE) + b1degree(2) + b2degree(1), offset=FALSE)
+#summary(TERGM_control)
+
+#Goodness of Fit
+#tergmgof_control <- btergm::gof(TERGM_control)
+#plot(tergmgof_control[[3]], xlim=15) #plot of degree distribution
+#plot(tergmgof_control[[4]], xlim=10) #plot of geodesic distances
+
+
+
+```
+
+```{r spatial TERGM}
+```
 
 ####GOF and Decay Value Checks-------
 
