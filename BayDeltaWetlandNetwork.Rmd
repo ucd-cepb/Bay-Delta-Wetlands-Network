@@ -1183,19 +1183,274 @@ plot(tergmgof_spatialfull[[4]], xlim=10)
 
 ####Decay Value Checks-------
 ```{r decay value check}
+TERGM_control1<- btergm(estnets ~ edges + gwb1degree(1, fixed=TRUE)+gwb2degree(1, fixed=TRUE) + b2degree(1), offset=FALSE)
+summary(TERGM_control1)
 
+TERGM_control0.75 <- btergm(estnets ~ edges + gwb1degree(0.75, fixed=TRUE)+gwb2degree(0.75, fixed=TRUE) + b2degree(1), offset=FALSE)
+summary(TERGM_control0.75)
+
+#0.5 degree used above
+summary(TERGM_control)
+
+TERGM_control0.25 <- btergm(estnets ~ edges + gwb1degree(0.25, fixed=TRUE)+gwb2degree(0.25, fixed=TRUE) + b2degree(1), offset=FALSE)
+summary(TERGM_control0.25)
+
+TERGM_control1.25 <-  btergm(estnets ~ edges + gwb1degree(1.25, fixed=TRUE)+gwb2degree(1.25, fixed=TRUE) + b2degree(1), offset=FALSE)
+summary(TERGM_control1.25)
+
+#general goodness of fit
+tergmgof_control0.25 <- btergm::gof(TERGM_control0.25)
+tergmgof_control<- btergm::gof(TERGM_control)
+tergmgof_control0.75 <- btergm::gof(TERGM_control0.75)
+tergmgof_control1 <- btergm::gof(TERGM_control1)
+tergmgof_control1.25 <- btergm::gof(TERGM_control1.25)
+
+#compare degree distribution plots for decay values
+plot(tergmgof_control0.25[[3]], xlim=15)
+plot(tergmgof_control[[3]], xlim=15)
+plot(tergmgof_control0.75[[3]], xlim=15)
+plot(tergmgof_control1[[3]], xlim=15)
+plot(tergmgof_control1.25[[3]], xlim=15)
+
+#compare geodesic distances
+plot(tergmgof_control0.25[[4]], xlim=10)
+plot(tergmgof_control[[4]], xlim=10)
+plot(tergmgof_control0.75[[4]], xlim=10)
+plot(tergmgof_control1[[4]], xlim=10)
+plot(tergmgof_control1.25[[4]], xlim=10)
 ```
 
 
-
-####Bonferroni Corrections--------
-
 ####Regular ERGM for Comparison--------
+```{r regular ERGM}
+library(ergm)
+set.seed(4144141)
+
+PlainERGMcontrol <- ergm(net ~ edges + gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5, fixed=TRUE) + b2degree(1))
+summary(PlainERGMcontrol)
+
+PlainERGM <- ergm(net ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2factor("orgscale") + b2cov("gov") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b1cov("totalES") + b1cov("tidal") + b1cov("delta"))
+summary(PlainERGM)
+
+PlainERGM_spatial <- ergm(spatialnet ~edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"))
+summary(PlainERGM_spatial)
+
+```
+
+#### Bonferroni Correction--------
+```{r bonferroni}
+#recheck if significance levels are above 0.05/14 (0.0036) in TERGM_spatialfull, TERGM_spatialbens , and TERGM_spatialTC
+#put in corrected (divide by 14) and regular p values
+
+#obtain p values
+#for full model
+TERGM_spatialfull_se <- btergm.se(TERGM_spatialfull)
+
+#now contains the p-values in the fourth column
+TERGM_spatialfull_p_values <- TERGM_spatialfull_se[, 4]
+
+TERGM_spatialfull_p_values
+
+TERGM_spatialfull_stde <- TERGM_spatialfull_se[, 2]
+TERGM_spatialfull_stde
+
+#identify which remain significant after the bonferroni correction (i.e. p value < 0.0036)
+
+TERGM_spatialfull_sigbonf <- ifelse(TERGM_spatialfull_p_values <0.0036, TERGM_spatialfull_p_values, "not sig")
+
+TERGM_spatialfull_sigbonf  
+
+#redo for TC model
+TERGM_spatialTC_se <- btergm.se(TERGM_spatialTC)
+
+#now contains the p-values in the fourth column
+TERGM_spatialTC_p_values <- TERGM_spatialTC_se[, 4]
+
+TERGM_spatialTC_p_values
+
+TERGM_spatialTC2_stde <- TERGM_spatialTC2_se[, 2]
+
+TERGM_spatialTC2_stde
+
+#identify which remain significant after the bonferroni correction (i.e. p value < 0.0036)
+
+TERGM_spatialTC_sigbonf <- ifelse(TERGM_spatialTC_p_values <0.0036, TERGM_spatialTC_p_values, "not sig")
+
+TERGM_spatialTC_sigbonf
+
+
+#redo for benefits model
+TERGM_spatialbens_se <- btergm.se(TERGM_spatialbens)
+
+#now contains the p-values in the fourth column
+TERGM_spatialbens_p_values <- TERGM_spatialbens_se[, 4]
+
+TERGM_spatialbens_p_values
+
+TERGM_spatialbens_stde <- TERGM_spatialbens_se[, 2]
+TERGM_spatialbens_stde
+
+#identify which remain significant after the bonferroni correction (i.e. p value < 0.0036)
+
+TERGM_spatialbens_sigbonf <- ifelse(TERGM_spatialbens_p_values <0.0036, TERGM_spatialbens_p_values, "not sig")
+
+TERGM_spatialbens_sigbonf
+
+```
 
 #### Correlations----------
+```{r org scale and type}
+#Code from https://rpubs.com/hoanganhngo610/558925
+table(attributes2$orgtype2, attributes2$orgscale2)
+chisq.test(attributes2$orgtype2, attributes2$orgscale2)
+library('DescTools')
+ContCoef(attributes2$orgtype2, attributes2$orgscale2, correct = FALSE)
+ContCoef(attributes2$orgtype2, attributes2$orgscale2, correct = TRUE)
+
+library('rcompanion')
+cramerV(attributes2$orgtype2, attributes2$orgscale2, bias.correct = FALSE)
+
+library('lsr')
+cramersV(attributes2$orgtype2, attributes2$orgscale2)
+
+library('vcd')
+assocstats(xtabs(~attributes2$orgtype2 + attributes2$orgscale2))
+
+rcompanion::cramerV(attributes2$orgtype2, attributes2$orgscale2, bias.correct = TRUE)
+
+DescTools::UncertCoef(table(attributes2$orgtype2, attributes2$orgscale2), direction = "column")
+
+UncertCoef(table(attributes2$orgtype2, attributes2$orgscale2), direction = "row")
+
+UncertCoef(table(attributes2$orgtype2, attributes2$orgscale2), direction = "symmetric")
+```
+
+```{r project attribute correlations}
+#run correlations between predictor variables
+
+#project correlations- total ES, CES, biodiversity, flood risk, delta, tidal, thous acres
+
+#correlation matrices
+projattscorr <- attributes2 %>% select(tidal, deltaregion, SUM_benefits, finFLOOD3, finBIO, finCES, thousacres)
+projattscorr <- projattscorr[1:225, ]
+projattcorrs <- correlate(projattscorr)
+projattcorrs <- as.data.frame(projattcorrs)
+
+#correlation plot
+library(corrplot)
+row.names(projattcorrs)=projattcorrs$term
+projattcorrs <- projattcorrs[, 2:8]
+projattcorrs <- as.matrix(projattcorrs)
+
+rownames(projattcorrs) <- c("Tidal", "Delta", "TotalES", "FloodRisk", "Biodiversity", "CalEnviroScreen", "Acreage")
+
+colnames(projattcorrs) <- c("Tidal", "Delta", "TotalES", "FloodRisk", "Biodiversity", "CalEnviroScreen", "Acreage")
+
+corrplot(projattcorrs, method="circle", diag=FALSE)
+
+library(Hmisc)
+indivprojattcorrs <- rcorr(as.matrix(projattscorr))
+
+projattcoeffs <- rcorr(as.matrix(projattscorr), type="spearman")[[1]][1:7, 1:7]
+projattcoeffs
+
+projattpvalues <- rcorr(as.matrix(projattscorr), type="spearman")[[3]][1:7, 1:7]
+projattpvalues <- as.data.frame(projattpvalues)
+projattpvalues
+```
+
+```{r org attribute correlations}
+#org correlations- org scale, gov org type, implementer, funding pools, boundary spanner
+
+#correlation matrices
+orgattscorr <- attributes2 %>% select(govorg, implementer, fundpools, boundaryspanner, localorg)
+orgattscorr <- orgattscorr[226:394, ]
+orgattcorrs <- correlate(orgattscorr)
+orgattcorrs <- as.data.frame(orgattcorrs)
+
+#correlation plot
+library(corrplot)
+row.names(orgattcorrs)=orgattcorrs$term
+orgattcorrs <- orgattcorrs[, 2:6]
+orgattcorrs <- as.matrix(orgattcorrs)
+
+rownames(orgattcorrs) <- c("Gov", "Implementer", "Funding Pools", "Boundary Spanner", "Local")
+
+colnames(orgattcorrs) <- c("Gov", "Implementer", "Funding Pools", "Boundary Spanner", "Local")
+
+corrplot(orgattcorrs, method="circle", diag=FALSE)
+
+indivorgattcorrs <- rcorr(as.matrix(orgattscorr))
+
+orgattcoeffs <- rcorr(as.matrix(orgattscorr), type="spearman")[[1]][1:5, 1:5]
+orgattcoeffs
+
+orgattpvalues <- rcorr(as.matrix(orgattscorr), type="spearman")[[3]][1:5, 1:5]
+orgattpvalues <- as.data.frame(orgattpvalues)
+orgattpvalues
+```
+
+####Additional Descriptives---------
+```{r org type degree}
+#step0net, step1net, step2net, step3net, step4net, step5net, step6net degree by orgtype
+#will need to calculate two mode degree for actors for each network and then assign attribute and group by org type
+
+#actor org types
+
+orgtypes <- attributes2 %>% select(nodes, orgtype, orgtype2, orgscale)
+orgtypes <- orgtypes[226:394, ]
+orgtypes <-  orgtypes %>% rename(org=nodes)
 
 
-####Additional Descriptives--------
+#step0net
+step0edgelist <- step0edge
+step0edgelist$weight <- 1
+step0degree <- step0edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+#merge degrees with org types
+step0degree <- left_join(step0degree, orgtypes, by="org")
+step0degree %>% group_by(orgtype2) %>% summarise(mean(degree))
 
 
-####Additional Figures and  Mapping---------
+#step1net
+step1edgelist <- step1edge
+step1edgelist$weight <- 1
+step1degree <- step1edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+step1degree <- left_join(step1degree, orgtypes, by="org")
+step1degree %>% group_by(orgtype2) %>% summarise(mean(degree))
+
+#step2net
+step2edgelist <- step2edge
+step2edgelist$weight <- 1
+step2degree <- step2edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+step2degree <- left_join(step2degree, orgtypes, by="org")
+step2degree %>% group_by(orgtype2) %>% summarise(mean(degree))
+
+#step3net
+step3edgelist <- step3edge
+step3edgelist$weight <- 1
+step3degree <- step3edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+step3degree <- left_join(step3degree, orgtypes, by="org")
+step3degree %>% group_by(orgtype2) %>% summarise(mean(degree))
+
+#step4net
+step4edgelist <- step4edge
+step4edgelist$weight <- 1
+step4degree <- step4edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+step4degree <- left_join(step4degree, orgtypes, by="org")
+step4degree %>% group_by(orgtype2) %>% summarise(mean(degree))
+
+#step5net
+step5edgelist <- step5edge
+step5edgelist$weight <- 1
+step5degree <- step5edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+step5degree <- left_join(step5degree, orgtypes, by="org")
+step5degree %>% group_by(orgtype2) %>% summarise(mean(degree))
+
+#step6net
+step6edgelist <- step6edge
+step6edgelist$weight <- 1
+step6degree <- step6edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
+step6degree <- left_join(step6degree, orgtypes, by="org")
+step6degree %>% group_by(orgtype2) %>% summarise(mean(degree))
+
+```
