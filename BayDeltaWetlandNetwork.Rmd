@@ -1484,4 +1484,22 @@ mean(attributes2$fundpools, na.rm=TRUE)
 sd(attributes2$fundpools, na.rm=TRUE)
 median(attributes2$fundpools, na.rm=TRUE)
 table(attributes2$fundpools)
+
+
+#edgelist with funder names
+fundertotals <- EcoAtlas %>% select(fundername, fundingamount, fundingid)
+#get total funding for each org
+
+funders_sums <- fundertotals %>% group_by(fundername) %>% summarise(totalbudget=sum(fundingamount))
+
+funders_sums$USFWS <- ifelse(grepl("USFWS", funders_sums$fundername), 'USFWS', "NA")
+
+funders_sums %>% group_by(USFWS) %>% summarise(USFWSfund=sum(totalbudget))
+
+funders_sums$WCB <- ifelse(grepl("WCB", funders_sums$fundername), 'WCB', "NA")
+
+funders_sums %>% group_by(WCB) %>% summarise(WCBfund=sum(totalbudget))
+
+funders_sums$SCC <- ifelse(grepl("SCC", funders_sums$fundername), 'SCC', "NA")
+funders_sums %>% group_by(SCC) %>% summarise(SCCfund=sum(totalbudget))
 ```
