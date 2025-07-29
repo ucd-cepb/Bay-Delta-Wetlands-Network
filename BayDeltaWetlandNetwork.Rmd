@@ -45,7 +45,6 @@ library(tnet)
 library(corrr)
 library(corrplot)
 library(Hmisc)
-library(corrr)
 library(spdep)
 library(matrixStats)
 
@@ -73,7 +72,7 @@ RawEcoAtlas3 <- RawEcoAtlas2 %>% filter(activitytypename=="Creation/Establishmen
 NonRestoreProjs <- subset(RawEcoAtlas2, !(projectid %in% RawEcoAtlas3$projectid))
 NonRestoreProjs <- NonRestoreProjs %>% 
   unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
-unique(NonRestoreProjs$EAid) #934 unique projects removed based on habitat 
+#unique(NonRestoreProjs$EAid) #934 unique projects removed based on habitat 
 
 #filter by habitat to wetlands or unknown 
 RawEcoAtlas4 <- RawEcoAtlas3 %>% filter(habitatname=="Bay Habitat (SFBJV Only)"| habitatname=="Buffer area"| habitatname=="Depressional Wetland" | habitatname=="Estuarine Wetland"| habitatname=="Riverine Wetland"|habitatname=="Palustrine Wetland"|habitatname=="Seasonal Wetland"|habitatname=="Seeps and springs wetlands"|habitatname=="Subtidal Habitat"|habitatname=="Unknown/unspecified habitat"|habitatname=="Unknown/unspecified wetland habitat"|habitatname=="None")
@@ -82,7 +81,7 @@ RawEcoAtlas4 <- RawEcoAtlas3 %>% filter(habitatname=="Bay Habitat (SFBJV Only)"|
 NonWetlandHabProjs <- subset(RawEcoAtlas3, !(projectid %in% RawEcoAtlas4$projectid))
 NonWetlandHabProjs <- NonWetlandHabProjs %>% 
   unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
-unique(NonWetlandHabProjs$EAid) #277 unique projects removed based on habitat 
+#unique(NonWetlandHabProjs$EAid) #277 unique projects removed based on habitat 
 
 #filter by funding availability (not lacking funding except tule red)
 RawEcoAtlas5 <- RawEcoAtlas4[RawEcoAtlas4$fundername!="", ]
@@ -148,7 +147,7 @@ EcoAtlas <- EcoAtlas %>% filter(projectid!=5736)
 EcoAtlas <- EcoAtlas %>% filter(projectid!=5360)
 EcoAtlas <- EcoAtlas %>% filter(projectid!=5512)
 
-sort(unique(EcoAtlas$projectid)) #199 project ids (slightly more due to subprojects)
+#sort(unique(EcoAtlas$projectid)) #199 project ids (slightly more due to subprojects)
 
 ```
 
@@ -408,7 +407,7 @@ st_crs(finshpprojects)==st_crs(baydelta.wgs84) #now true
 
 ```{r load calenviroscreen data}
 #load in all CA calenviroscreen tracts
-ces_ca <- st_read("calenviroscreen/CES4 Final Shapefile.shp")
+ces_ca <- st_read("CES4 Final Shapefile.shp")
 
 #reproject
 ces_ca.wgs84 <- ces_ca %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
@@ -416,17 +415,19 @@ ces_ca.wgs84 <- ces_ca %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=
 #clip to bay-delta county boundaries
 ces <- ms_clip(target = ces_ca.wgs84, clip = baydelta.wgs84, remove_slivers = TRUE)
 
+
 ```
 
 ```{r load biodiversity data}
 #load biodiversity data from CDFW
-fullbio <- st_read("ACE/Species_Biodiversity_ACE_[ds2769].shp")
+fullbio <- st_read("Species_Biodiversity_ACE_[ds2769].shp")
 
 #reproject
 fullbio.wgs84 <- fullbio  %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
 
 #clip to correct area (Bay-Delta Counties)
 bio <- ms_clip(target=fullbio.wgs84, clip=baydelta.wgs84, remove_slivers=TRUE)
+
 ```
 
 ```{r biodiversity spatial interpolation on project boundaries}
@@ -456,7 +457,7 @@ CalEnviro.aw <- aw_interpolate(projects.utm, tid = shpid, source = ces.utm, sid 
                            weight = "sum", output = "sf", 
                            intensive = c("CIscore"))
 #drop geometry again
-projCES <- CalEnviro.aw %>% st_drop_geometry() %>% dplyr::select("shpid", "pname", "CIscore", "ImpWatBod")
+projCES <- CalEnviro.aw %>% st_drop_geometry() %>% dplyr::select("shpid", "pname", "CIscore")
 
 #convert -999 values to NA
 projCES$CalEnvscore <- ifelse(projCES$CIscore<0, NA, projCES$CIscore)
@@ -528,8 +529,8 @@ attributes2$finBIO <- ifelse(is.na(attributes2$SpBioWtEco)==TRUE, attributes2$Sp
 ```{r load flood risk data}
 #this data was already prepared in ArcGIS
 #read in flood risk data from using zonal statistics on rasters in arcgispro
-projcoordsFLOOD <- read.csv("floodrisk/projcoordsfloodrisk.csv") #flood depth calculated for 14 projects with coordinates
-projboundFLOOD <- read.csv("floodrisk/projboundsfloodrisk.csv") #flood depth calculated for 156 projects with shapefile boundaries
+projcoordsFLOOD <- read.csv("projcoordsfloodrisk.csv") #flood depth calculated for 14 projects with coordinates
+projboundFLOOD <- read.csv("projboundsfloodrisk.csv") #flood depth calculated for 156 projects with shapefile boundaries
 
 #merge in project boundary flood data
 projboundFLOOD$shpid <- as.character(projboundFLOOD$shpid)
@@ -614,7 +615,6 @@ network::set.vertex.attribute(net, "CES", attributes2$finCES)
 network::set.vertex.attribute(net, "acres", attributes2$acreage)
 network::set.vertex.attribute(net, "thousacres", attributes2$thousacres)
 network::set.vertex.attribute(net, "duration", attributes2$duration)
-network::set.vertex.attribute(net, "budget", attributes2$Sum_fund)
 network::set.vertex.attribute(net, "startyear", attributes2$startyear)
 network::set.vertex.attribute(net, "orgtype", attributes2$orgtype3)
 network::set.vertex.attribute(net, "orgtypelong", attributes2$orgtype2)
@@ -684,8 +684,8 @@ baynet2 <- network::delete.vertices(baynet, bayisolates)
 deltanet2 <- network::delete.vertices(deltanet, deltaisolates) 
 
 #check all attributes transferred to subnetworks
-network::list.vertex.attributes(baynet2)
-network::list.vertex.attributes(deltanet2)
+#network::list.vertex.attributes(baynet2)
+#network::list.vertex.attributes(deltanet2)
 ```
 
 #### Network Descriptives------
@@ -1181,6 +1181,30 @@ plot(tergmgof_spatialfull[[3]], xlim=15)
 plot(tergmgof_spatialfull[[4]], xlim=10)
 ```
 
+```{r extra TERGMs}
+#Model with spatial variables without org scale
+TERGM_spatialfull_noscale <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_spatialfull_noscale)
+
+#p-values for full model
+TERGM_spatialfull_noscale_se <- btergm.se(TERGM_spatialfull_noscale)
+#now contains the p-values in the fourth column
+TERGM_spatialfull_noscale_p_values <- TERGM_spatialfull_noscale_se[, 4]
+
+TERGM_spatialfull_noscale_p_values
+
+#Model without spatial variables without org scale
+TERGM_full_noscale <- btergm(estnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta"), offset=FALSE)
+summary(TERGM_full_noscale)
+
+#p-values for full model
+TERGM_full_noscale_se <- btergm.se(TERGM_full_noscale)
+#now contains the p-values in the fourth column
+TERGM_full_noscale_p_values <- TERGM_full_noscale_se[, 4]
+
+TERGM_full_noscale_p_values
+```
+
 ####Decay Value Checks-------
 ```{r decay value check}
 TERGM_control1<- btergm(estnets ~ edges + gwb1degree(1, fixed=TRUE)+gwb2degree(1, fixed=TRUE) + b2degree(1), offset=FALSE)
@@ -1453,4 +1477,11 @@ step6degree <- step6edgelist %>% group_by(org) %>% summarise(degree=sum(weight))
 step6degree <- left_join(step6degree, orgtypes, by="org")
 step6degree %>% group_by(orgtype2) %>% summarise(mean(degree))
 
+```
+
+```{r funding pools}
+mean(attributes2$fundpools, na.rm=TRUE)
+sd(attributes2$fundpools, na.rm=TRUE)
+median(attributes2$fundpools, na.rm=TRUE)
+table(attributes2$fundpools)
 ```
