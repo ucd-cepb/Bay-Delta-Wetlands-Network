@@ -406,27 +406,36 @@ st_crs(finshpprojects)==st_crs(baydelta.wgs84) #now true
 ```
 
 ```{r load calenviroscreen data}
+#code below shows how original CES data was clipped to create 'ces' file
 #load in all CA calenviroscreen tracts
-ces_ca <- st_read("CES4 Final Shapefile.shp")
+#ces_ca <- st_read("CES4 Final Shapefile.shp")
 
 #reproject
-ces_ca.wgs84 <- ces_ca %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
+#ces_ca.wgs84 <- ces_ca %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
 
 #clip to bay-delta county boundaries
-ces <- ms_clip(target = ces_ca.wgs84, clip = baydelta.wgs84, remove_slivers = TRUE)
+#ces <- ms_clip(target = ces_ca.wgs84, clip = baydelta.wgs84, remove_slivers = TRUE)
 
+#load 'CES' data here
+ces <- st_read("ces.shp")
+ces <- ces %>% st_transform(crs="+proj=longlat +datum=WGS84 +ellps=WGS84")
 
 ```
 
 ```{r load biodiversity data}
+#Code below shows how original data was clipped to create 'bio' data
 #load biodiversity data from CDFW
-fullbio <- st_read("Species_Biodiversity_ACE_[ds2769].shp")
+#fullbio <- st_read("Species_Biodiversity_ACE_[ds2769].shp")
 
 #reproject
-fullbio.wgs84 <- fullbio  %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
+#fullbio.wgs84 <- fullbio  %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
 
 #clip to correct area (Bay-Delta Counties)
-bio <- ms_clip(target=fullbio.wgs84, clip=baydelta.wgs84, remove_slivers=TRUE)
+#bio <- ms_clip(target=fullbio.wgs84, clip=baydelta.wgs84, remove_slivers=TRUE)
+
+#Load in clipped biodiversity data here
+bio <- st_read("bio.shp")
+bio <- bio %>% st_transform(crs= "+proj=longlat +datum=WGS84 +ellps=WGS84")
 
 ```
 
