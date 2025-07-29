@@ -1130,22 +1130,63 @@ estspatialnets <- list(step0spatial, step1spatial, step2spatial, step3spatial, s
 ```{r nonspatial main TERGM}
 set.seed(9199919)
 #Control Model
-#TERGM_control <- btergm(estnets ~ edges +gwb2degree(0.5, fixed=TRUE) + b1degree(2) + b2degree(1), offset=FALSE)
-#summary(TERGM_control)
+TERGM_control <- btergm(estnets ~ edges +gwb2degree(0.5, fixed=TRUE) + b2degree(1), offset=FALSE)
+summary(TERGM_control)
 
 #Goodness of Fit
-#tergmgof_control <- btergm::gof(TERGM_control)
-#plot(tergmgof_control[[3]], xlim=15) #plot of degree distribution
-#plot(tergmgof_control[[4]], xlim=10) #plot of geodesic distances
+tergmgof_control <- btergm::gof(TERGM_control)
+plot(tergmgof_control[[3]], xlim=15) #plot of degree distribution
+plot(tergmgof_control[[4]], xlim=10) #plot of geodesic distances
 
+#TC model
+TERGM_TC <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_TC)
 
+#Project benefits
+TERGM_bens <- btergm(estnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b1cov("totalES") + b1cov("tidal") + b1cov("delta"), offset=FALSE)
+summary(TERGM_bens)
+
+#Full model
+TERGM_full <- btergm(estnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2factor("orgscale") + b2cov("gov") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta"), offset=FALSE)
+summary(TERGM_full)
 
 ```
 
 ```{r spatial TERGM}
+set.seed(1111)
+#Control TERGM
+TERGM_spatialcontrol <- btergm(estspatialnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1), offset=FALSE)
+summary(TERGM_spatialcontrol)
+btergm.se(TERGM_spatialcontrol)
+
+#general goodness of fit
+tergmgof_spatialcontrol <- btergm::gof(TERGM_spatialcontrol)
+plot(tergmgof_spatialcontrol[[3]], xlim=15)
+plot(tergmgof_spatialcontrol[[4]], xlim=15)
+
+#TC model
+TERGM_spatialTC <- btergm(estspatialnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_spatialTC)
+
+#Project benefits
+TERGM_spatialbens <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_spatialbens)
+
+#Full model
+TERGM_spatialfull <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_spatialfull)
+
+tergmgof_spatialfull <- btergm::gof(TERGM_spatialfull)
+plot(tergmgof_spatialfull[[3]], xlim=15)
+plot(tergmgof_spatialfull[[4]], xlim=10)
 ```
 
-####GOF and Decay Value Checks-------
+####Decay Value Checks-------
+```{r decay value check}
+
+```
+
+
 
 ####Bonferroni Corrections--------
 
