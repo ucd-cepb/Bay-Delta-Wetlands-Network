@@ -384,24 +384,26 @@ summary(acrereg)
 ```
 
 ```{r load bay-delta boundaries}
+#This step is only needed for clipping original raw data to obtain the bio and ces shapefiles that are for bay-delta counties (original data is for all of CA)
+
 #download bay-delta county boundaries to clip other shapefiles to
 #note that CalEnviroScreen 4.0 uses 2010 census tract boundaries (see https://oehha.ca.gov/media/downloads/calenviroscreen/report/calenviroscreen40reportf2021.pdf)
 #so use those and a 5 year ACS estimate that are based on 2010 boundaries (e.g. 2015-2019)
 
 #get all counties first
-counties <- counties(state="CA", cb=TRUE, year=2010)
+#counties <- counties(state="CA", cb=TRUE, year=2010)
 
 #select only bay delta counties (12 total- 9 in bay and 5 in delta with Contra Costa and Solano in both)
 #use dplyr filter to select by county name
-baydelta <- counties %>% filter(NAME %in% c("Alameda", "Contra Costa", "San Mateo", "Santa Clara", "Sacramento", "Solano", "Yolo", "Marin", "Napa", "Sonoma", "San Francisco", "San Joaquin"))
+#baydelta <- counties %>% filter(NAME %in% c("Alameda", "Contra Costa", "San Mateo", "Santa Clara", "Sacramento", "Solano", "Yolo", "Marin", "Napa", "Sonoma", "San Francisco", "San Joaquin"))
 
 #transform CRS of both to ensure they match
-st_crs(finshpprojects)==st_crs(baydelta) #check and find that currently they don't match
+#st_crs(finshpprojects)==st_crs(baydelta) #check and find that currently they don't match
 
 #use st_transform to put them in the same CRS- longlat projection and WGS84
-baydelta.wgs84 <- baydelta%>%
+#baydelta.wgs84 <- baydelta%>%
             st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84")
-st_crs(finshpprojects)==st_crs(baydelta.wgs84) #now true
+#st_crs(finshpprojects)==st_crs(baydelta.wgs84) #now true
 
 ```
 
@@ -549,6 +551,7 @@ attributes2 <- left_join(attributes2, projboundFLOOD, by="shpid")
 #merge in project coordinates flood data
 projcoordsFLOOD$EAid <- as.character(projcoordsFLOOD$EAid)
 projcoordsFLOOD <- rename(projcoordsFLOOD, avgflood=MEAN)
+#attributes2 <- attributes2 %>% rename(EAid = EAid.x) #rename if merge renamed EAid column
 attributes2 <- left_join(attributes2, projcoordsFLOOD, by="EAid")
 
 attributes2$finFLOOD <- ifelse(is.na(attributes2$MEAN)==TRUE, attributes2$avgflood, attributes2$MEAN)
@@ -1511,4 +1514,36 @@ funders_sums %>% group_by(WCB) %>% summarise(WCBfund=sum(totalbudget))
 
 funders_sums$SCC <- ifelse(grepl("SCC", funders_sums$fundername), 'SCC', "NA")
 funders_sums %>% group_by(SCC) %>% summarise(SCCfund=sum(totalbudget))
+```
+
+```{r additional centrality}
+#Check centrality of all state/regional, national scale, and government orgs
+
+stateregorgs <- attributes2 %>% filter(orgscale2=="regional/state")
+
+hist(stateregorgs$degree, breaks=50, xlab="Two Mode Degree", main="State/Regional Org Degree (N=43)")
+
+nationalorgs <- attributes2 %>% filter(orgscale2=="national/other")
+
+
+hist(nationalorgs$degree, breaks=50, xlab="Two Mode Degree", main="National/Other Org Degree (N=62)")
+
+govorgs <- attributes2 %>% filter(govorg=='1')
+
+
+hist(govorgs$degree, breaks=50, xlab="Two Mode Degree", main="Gov Org Degree (N=82)")
+
+#Delta Versus Bay Org Centrality
+bayatts <- attributes2 %>% filter(attributes2$nodes %in% baynodes)
+bayatts <- bayatts %>% filter(!is.na(orgtype)) #161 orgs
+
+deltaatts <- attributes2 %>% filter(nodes %in% deltanodes)
+deltaatts <- deltaatts %>% filter(!is.na(orgtype)) #19 orgs
+
+summary(bayatts$degree)
+summary(deltaatts$degree)
+
+table(deltaatts$orgscale2)
+table(bayatts$orgscale2)
+
 ```
