@@ -1545,5 +1545,7 @@ summary(deltaatts$degree)
 
 table(deltaatts$orgscale2)
 table(bayatts$orgscale2)
+table(deltaatts$govorg)
+table(bayatts$govorg)
 
 ```
