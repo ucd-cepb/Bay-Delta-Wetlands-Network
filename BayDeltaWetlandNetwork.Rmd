@@ -402,7 +402,7 @@ summary(acrereg)
 
 #use st_transform to put them in the same CRS- longlat projection and WGS84
 #baydelta.wgs84 <- baydelta%>%
-            st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84")
+          #  st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84")
 #st_crs(finshpprojects)==st_crs(baydelta.wgs84) #now true
 
 ```
