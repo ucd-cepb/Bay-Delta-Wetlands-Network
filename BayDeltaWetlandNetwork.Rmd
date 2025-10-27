@@ -1549,3 +1549,68 @@ table(deltaatts$govorg)
 table(bayatts$govorg)
 
 ```
+```{r create condensed network figure}
+#create network of 3 time steps for policy brief 
+
+edges3$timestepV2 <- ifelse(edges3$startyear<1996 & edges3$startyear>1981, 1, ifelse(edges3$startyear<2009 & edges3$startyear>1995, 2, ifelse(edges3$startyear >2008 & edges3$startyear<2023, 3, NA)))
+
+
+#split up the edgelists by timesteps
+#combine edgelists so each sequential time step is all previous ties
+#step0- 1980 to 1987
+step1edgeV2 <- edges3 %>% filter(timestepV2==1)
+
+#step1- 1988 to 1993
+step2edgeV2 <- edges3 %>% filter(timestepV2==2)
+
+#step2- 1994 to 1999
+step3edgeV2 <- edges3 %>% filter(timestepV2==3)
+
+#subset the network into these time steps
+
+#step 1 
+step1nodesV2 <- c(step1edgeV2$EAid, step1edgeV2$org)
+step1nodesV2 <- as.vector(step1nodesV2)
+step1nodesV2 <- as.data.frame(step1nodesV2)
+step1nodesV2 <- distinct(step1nodesV2)
+step1nodesV2 <- as.vector(step1nodesV2)
+step1nodesV2 <- unlist(step1nodesV2)
+step1netV2 <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step1nodesV2))
+
+#step 2 
+step2nodesV2 <- c(step2edgeV2$EAid, step2edgeV2$org)
+step2nodesV2 <- as.vector(step2nodesV2)
+step2nodesV2 <- as.data.frame(step2nodesV2)
+step2nodesV2 <- distinct(step2nodesV2)
+step2nodesV2 <- as.vector(step2nodesV2)
+step2nodesV2 <- unlist(step2nodesV2)
+step2netV2 <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step2nodesV2))
+
+
+#step 3 
+step3nodesV2 <- c(step3edgeV2$EAid, step3edgeV2$org)
+step3nodesV2 <- as.vector(step3nodesV2)
+step3nodesV2 <- as.data.frame(step3nodesV2)
+step3nodesV2 <- distinct(step3nodesV2)
+step3nodesV2 <- as.vector(step3nodesV2)
+step3nodesV2 <- unlist(step3nodesV2)
+step3netV2 <- get.inducedSubgraph(net,v=which(net%v%'vertex.names' %in% step3nodesV2))
+
+
+#plot each network
+sna::gplot(step1netV2, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=2, displayisolates = T, jitter=T)
+
+sna::gplot(step2netV2, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=2, displayisolates = T, jitter=T)
+
+sna::gplot(step3netV2, 
+           gmode="twomode", 
+           usearrows = FALSE,
+           edge.col="gray", vertex.cex=2, displayisolates = T, jitter=T)
+
+```
