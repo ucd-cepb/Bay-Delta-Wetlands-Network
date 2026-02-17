@@ -310,7 +310,7 @@ net <- as.network(x=edgelist, # the network object
 library(igraph)
 
 net2 <- graph.data.frame(edgelist, directed = FALSE)
-bipartite.mapping(net2) #make sure it's bipartite
+#bipartite.mapping(net2) #make sure it's bipartite
 V(net2)$type <- bipartite.mapping(net2)$type
 
 ```
@@ -1648,4 +1648,67 @@ length(unique(RawEcoAtlas7$EAid))
 EcoAtlas <- EcoAtlas %>% 
   unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
 length(unique(EcoAtlas$EAid))
+```
+
+```{r additional GOF}
+#for each of the 3 spatial and 3 nonspatial TERGMs include ROC and AUC and brier score
+
+library(btergm)
+library(pROC)
+
+#Model 1- NonSpatial Control
+
+probs_c <- edgeprob(TERGM_control)
+obs_c <- lapply(estnets, as.matrix)
+pred_vec_c <- as.numeric(unlist(probs_c))
+obs_vec_c  <- unlist(obs_c)
+valid_c <- !is.na(pred_vec_c)
+pred_vec_c <- pred_vec_c[valid_c]
+obs_vec_c  <- obs_vec_c[valid_c]
+library(pROC)
+
+roc_obj_c <- roc(obs_vec_c, pred_vec_c)
+auc(roc_obj_c)
+
+#Model 2- NonSpatial TC
+probs_tc <- edgeprob(TERGM_TC)
+obs_tc <- lapply(estnets, as.matrix)
+pred_vec_tc <- as.numeric(unlist(probs_tc))
+obs_vec_tc  <- unlist(obs_tc)
+valid_tc <- !is.na(pred_vec_tc)
+pred_vec_tc <- pred_vec_tc[valid_tc]
+obs_vec_tc  <- obs_vec_tc[valid_tc]
+library(pROC)
+
+roc_obj_tc <- roc(obs_vec_tc, pred_vec_tc)
+auc(roc_obj_tc)
+
+#Model 3- Spatial Benefits
+probs_b <- edgeprob(TERGM_spatialbens)
+obs_b <- lapply(estspatialnets, as.matrix)
+pred_vec_b <- as.numeric(unlist(probs_b))
+obs_vec_b  <- unlist(obs_b)
+valid_b <- !is.na(pred_vec_b)
+pred_vec_b <- pred_vec_b[valid_b]
+obs_vec_b  <- obs_vec_b[valid_b]
+library(pROC)
+
+roc_obj_b <- roc(obs_vec_b, pred_vec_b)
+auc(roc_obj_b)
+
+#Model 4- Spatial Full
+probs_f <- edgeprob(TERGM_spatialfull)
+obs_f <- lapply(estspatialnets, as.matrix)
+pred_vec_f <- as.numeric(unlist(probs_f))
+obs_vec_f  <- unlist(obs_f)
+valid_f <- !is.na(pred_vec_f)
+pred_vec_f <- pred_vec_f[valid_f]
+obs_vec_f  <- obs_vec_f[valid_f]
+library(pROC)
+
+roc_obj_f <- roc(obs_vec_f, pred_vec_f)
+auc(roc_obj_f)
+
+
+
 ```
