@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r load packages}
+```{r load packages, include=FALSE}
 #general
 library(tidyverse)
 library(dplyr)
@@ -665,7 +665,7 @@ boundaryspanners
 #inbaynet2: 169, 171, 175, 180, 181, 182, 187, 211, 240, 241, 245
 #indeltanet2: 58, 59, 60, 61, 62, 63, 66, 71, 73, 74, 76
 
-baynet2 %v% 'vertex.names'
+#baynet2 %v% 'vertex.names'
 
 #corresponds to SCC State Coastal Conservancy, CDFW California Department of Fish and Wildlife, USFWS U.S. Fish and Wildlife Service, WCB Wildlife Conservation Board, CDWR California Department of Water Resources, Solano Land Trust, Sacramento-San Joaquin Delta Conservancy, Unknown/Unspecified, Unknown/Unspecified Private Funder, U.S. Environmental Protection Agency, CNRA California Natural Resources Agency
 
@@ -1613,4 +1613,39 @@ sna::gplot(step3netV2,
            usearrows = FALSE,
            edge.col="gray", vertex.cex=2, displayisolates = T, jitter=T)
 
+```
+
+```{r Data Filtering Check}
+#Check for unique project IDs in each data filtering step
+
+RawEcoAtlas2 <- RawEcoAtlas2 %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(RawEcoAtlas2$EAid))
+
+
+RawEcoAtlas3 <- RawEcoAtlas3 %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(RawEcoAtlas3$EAid))
+
+
+RawEcoAtlas4 <- RawEcoAtlas4 %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(RawEcoAtlas4$EAid))
+
+
+RawEcoAtlas5 <- RawEcoAtlas5 %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(RawEcoAtlas5$EAid))
+
+RawEcoAtlas6 <- RawEcoAtlas6 %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(RawEcoAtlas6$EAid))
+
+RawEcoAtlas7 <- RawEcoAtlas7 %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(RawEcoAtlas7$EAid))
+
+EcoAtlas <- EcoAtlas %>% 
+  unite(EAid, projectid, siteid, activityid, sep = ".", remove = FALSE)
+length(unique(EcoAtlas$EAid))
 ```
