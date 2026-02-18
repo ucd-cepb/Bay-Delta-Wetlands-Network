@@ -1651,63 +1651,51 @@ length(unique(EcoAtlas$EAid))
 ```
 
 ```{r additional GOF}
-#for each of the 3 spatial and 3 nonspatial TERGMs include ROC and AUC and brier score
+#for each of the 3 spatial and 3 nonspatial TERGMs include PR-AUC
 
-library(btergm)
-library(pROC)
+#Precision Recall Curve
 
-#Model 1- NonSpatial Control
+library(PRROC)
 
-probs_c <- edgeprob(TERGM_control)
-obs_c <- lapply(estnets, as.matrix)
-pred_vec_c <- as.numeric(unlist(probs_c))
-obs_vec_c  <- unlist(obs_c)
-valid_c <- !is.na(pred_vec_c)
-pred_vec_c <- pred_vec_c[valid_c]
-obs_vec_c  <- obs_vec_c[valid_c]
-library(pROC)
+compute_pr_curve <- function(model) {
+  # 1. Extract design matrix and response
+  X <- as.matrix(model@effects)
+  y <- as.numeric(model@response)
+  
+  # 2. Predicted probabilities
+  beta <- as.numeric(model@coef)
+  p <- plogis(X %*% beta)
+  
+  # 3. Compute Precision-Recall curve
+  # PRROC expects "scores for positive class" and labels
+  pr <- pr.curve(scores.class0 = p[y == 1],
+                 scores.class1 = p[y == 0],
+                 curve = TRUE)
+  
+  # Plot the PR curve
+  plot(pr, main = paste("PR Curve for", deparse(model@formula)))
+  
+  # Return the PR object for area under the curve etc.
+  return(pr)
+}
 
-roc_obj_c <- roc(obs_vec_c, pred_vec_c)
-auc(roc_obj_c)
 
-#Model 2- NonSpatial TC
-probs_tc <- edgeprob(TERGM_TC)
-obs_tc <- lapply(estnets, as.matrix)
-pred_vec_tc <- as.numeric(unlist(probs_tc))
-obs_vec_tc  <- unlist(obs_tc)
-valid_tc <- !is.na(pred_vec_tc)
-pred_vec_tc <- pred_vec_tc[valid_tc]
-obs_vec_tc  <- obs_vec_tc[valid_tc]
-library(pROC)
+#For control model
+pr_TERGM_c <- compute_pr_curve(TERGM_control)
+pr_TERGM_c$auc.integral  # area under the PR curve
 
-roc_obj_tc <- roc(obs_vec_tc, pred_vec_tc)
-auc(roc_obj_tc)
+# For TC model
+pr_TERGM_TC <- compute_pr_curve(TERGM_TC)
+pr_TERGM_TC$auc.integral  # area under the PR curve
 
-#Model 3- Spatial Benefits
-probs_b <- edgeprob(TERGM_spatialbens)
-obs_b <- lapply(estspatialnets, as.matrix)
-pred_vec_b <- as.numeric(unlist(probs_b))
-obs_vec_b  <- unlist(obs_b)
-valid_b <- !is.na(pred_vec_b)
-pred_vec_b <- pred_vec_b[valid_b]
-obs_vec_b  <- obs_vec_b[valid_b]
-library(pROC)
+#For spatial benefits model
+pr_TERGM_b <- compute_pr_curve(TERGM_spatialbens)
+pr_TERGM_b$auc.integral  # area under the PR curve
 
-roc_obj_b <- roc(obs_vec_b, pred_vec_b)
-auc(roc_obj_b)
+#for full model
+pr_TERGM_f <- compute_pr_curve(TERGM_spatialfull)
+pr_TERGM_f$auc.integral  # area under the PR curve
 
-#Model 4- Spatial Full
-probs_f <- edgeprob(TERGM_spatialfull)
-obs_f <- lapply(estspatialnets, as.matrix)
-pred_vec_f <- as.numeric(unlist(probs_f))
-obs_vec_f  <- unlist(obs_f)
-valid_f <- !is.na(pred_vec_f)
-pred_vec_f <- pred_vec_f[valid_f]
-obs_vec_f  <- obs_vec_f[valid_f]
-library(pROC)
-
-roc_obj_f <- roc(obs_vec_f, pred_vec_f)
-auc(roc_obj_f)
 
 
 
