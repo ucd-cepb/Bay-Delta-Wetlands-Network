@@ -1142,7 +1142,7 @@ estspatialnets <- list(step0spatial, step1spatial, step2spatial, step3spatial, s
 ```{r nonspatial main TERGM}
 set.seed(9199919)
 #Control Model
-TERGM_control <- btergm(estnets ~ edges +gwb2degree(0.5, fixed=TRUE) + b2degree(1), offset=FALSE)
+TERGM_control <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5, fixed=TRUE) + b2degree(1), offset=FALSE)
 summary(TERGM_control)
 
 #Goodness of Fit
