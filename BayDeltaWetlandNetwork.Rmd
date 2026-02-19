@@ -1718,3 +1718,17 @@ tergmgof_spatialfull$`Tie prediction`$auc.roc
 #Both much higher than baseline density of 0.075
 
 ```
+
+
+```{r Excluded Projects Analysis}
+#Create Dataset of Excluded Projects (after habitat filtering, before funding availability filtering)
+
+ExcludedProjects <- subset(RawEcoAtlas4, !(EAid %in% EcoAtlas$EAid))
+ExcludedProjects <- ExcludedProjects %>% unite(EAid_noactivity, projectid, siteid, sep = ".", remove = FALSE)
+ExcludedProjectsEAID <- ExcludedProjects$EAid_noactivity
+
+projectsshp <- projectsshp %>%  unite(EAid_noactivity, projectid, siteid, sep = ".", remove = FALSE)
+ExcludedProjshp <- projectsshp[projectsshp$EAid %in% ExcludedProjectsEAID, ]
+
+#st_write(ExcludedProjshp, "ExcludedProjs.shp")
+```
