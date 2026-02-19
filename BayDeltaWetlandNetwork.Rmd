@@ -1149,10 +1149,17 @@ summary(TERGM_control)
 tergmgof_control <- btergm::gof(TERGM_control)
 plot(tergmgof_control[[3]], xlim=15) #plot of degree distribution
 plot(tergmgof_control[[4]], xlim=10) #plot of geodesic distances
+plot(tergmgof_control[[5]])
 
 #TC model
 TERGM_TC <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
 summary(TERGM_TC)
+
+#Goodness of Fit
+tergmgof_TC <- btergm::gof(TERGM_TC)
+plot(tergmgof_TC[[3]], xlim=15) #plot of degree distribution
+plot(tergmgof_TC[[4]], xlim=10) #plot of geodesic distances
+plot(tergmgof_TC[[5]])
 
 #Project benefits
 TERGM_bens <- btergm(estnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b1cov("totalES") + b1cov("tidal") + b1cov("delta"), offset=FALSE)
@@ -1184,6 +1191,11 @@ summary(TERGM_spatialTC)
 TERGM_spatialbens <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
 summary(TERGM_spatialbens)
 
+tergmgof_spatialben <- btergm::gof(TERGM_spatialbens)
+plot(tergmgof_spatialben[[3]], xlim=15)
+plot(tergmgof_spatialben[[4]], xlim=10)
+plot(tergmgof_spatialben[[5]])
+
 #Full model
 TERGM_spatialfull <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
 summary(TERGM_spatialfull)
@@ -1191,6 +1203,7 @@ summary(TERGM_spatialfull)
 tergmgof_spatialfull <- btergm::gof(TERGM_spatialfull)
 plot(tergmgof_spatialfull[[3]], xlim=15)
 plot(tergmgof_spatialfull[[4]], xlim=10)
+plot(tergmgof_spatialfull[[5]])
 ```
 
 ```{r extra TERGMs}
@@ -1370,19 +1383,18 @@ UncertCoef(table(attributes2$orgtype2, attributes2$orgscale2), direction = "symm
 projattscorr <- attributes2 %>% select(tidal, deltaregion, SUM_benefits, finFLOOD3, finBIO, finCES, thousacres)
 projattscorr <- projattscorr[1:225, ]
 projattcorrs <- correlate(projattscorr)
-projattcorrs <- as.data.frame(projattcorrs)
+projattcorrsdf <- as.data.frame(projattcorrs[[1]])
 
 #correlation plot
 library(corrplot)
-row.names(projattcorrs)=projattcorrs$term
-projattcorrs <- projattcorrs[, 2:8]
-projattcorrs <- as.matrix(projattcorrs)
+row.names(projattcorrsdf)= c("tidal", "deltaregion", "SUM_benefits", "finFLOOD3", "finBIO", "finCES", "thousacres")
+projattcorrsdf <- as.matrix(projattcorrsdf)
 
-rownames(projattcorrs) <- c("Tidal", "Delta", "TotalES", "FloodRisk", "Biodiversity", "CalEnviroScreen", "Acreage")
+rownames(projattcorrsdf) <- c("Tidal", "Delta", "TotalES", "FloodRisk", "Biodiversity", "CalEnviroScreen", "Acreage")
 
-colnames(projattcorrs) <- c("Tidal", "Delta", "TotalES", "FloodRisk", "Biodiversity", "CalEnviroScreen", "Acreage")
+colnames(projattcorrsdf) <- c("Tidal", "Delta", "TotalES", "FloodRisk", "Biodiversity", "CalEnviroScreen", "Acreage")
 
-corrplot(projattcorrs, method="circle", diag=FALSE)
+corrplot(projattcorrsdf, method="circle", diag=FALSE)
 
 library(Hmisc)
 indivprojattcorrs <- rcorr(as.matrix(projattscorr))
@@ -1399,29 +1411,28 @@ projattpvalues
 #org correlations- org scale, gov org type, implementer, funding pools, boundary spanner
 
 #correlation matrices
-orgattscorr <- attributes2 %>% select(govorg, implementer, fundpools, boundaryspanner, localorg)
+orgattscorr <- attributes2 %>% select(govorg, implementer, fundpools, orgboundaryspanner, localorg, degree)
 orgattscorr <- orgattscorr[226:394, ]
 orgattcorrs <- correlate(orgattscorr)
-orgattcorrs <- as.data.frame(orgattcorrs)
+orgattcorrsdf <- as.data.frame(orgattcorrs[[1]])
 
 #correlation plot
 library(corrplot)
-row.names(orgattcorrs)=orgattcorrs$term
-orgattcorrs <- orgattcorrs[, 2:6]
-orgattcorrs <- as.matrix(orgattcorrs)
+row.names(orgattcorrsdf)=c("govorg", "implementer", "fundpools", "orgboundaryspanner", "localorg", "degree")
+orgattcorrsdf <- as.matrix(orgattcorrsdf)
 
-rownames(orgattcorrs) <- c("Gov", "Implementer", "Funding Pools", "Boundary Spanner", "Local")
+rownames(orgattcorrsdf) <- c("Gov", "Implementer", "Funding Pools", "Boundary Spanner", "Local", "Degree")
 
-colnames(orgattcorrs) <- c("Gov", "Implementer", "Funding Pools", "Boundary Spanner", "Local")
+colnames(orgattcorrsdf) <- c("Gov", "Implementer", "Funding Pools", "Boundary Spanner", "Local", "Degree")
 
-corrplot(orgattcorrs, method="circle", diag=FALSE)
+corrplot(orgattcorrsdf, method="circle", diag=FALSE)
 
 indivorgattcorrs <- rcorr(as.matrix(orgattscorr))
 
-orgattcoeffs <- rcorr(as.matrix(orgattscorr), type="spearman")[[1]][1:5, 1:5]
+orgattcoeffs <- rcorr(as.matrix(orgattscorr), type="spearman")[[1]][1:6, 1:6]
 orgattcoeffs
 
-orgattpvalues <- rcorr(as.matrix(orgattscorr), type="spearman")[[3]][1:5, 1:5]
+orgattpvalues <- rcorr(as.matrix(orgattscorr), type="spearman")[[3]][1:6, 1:6]
 orgattpvalues <- as.data.frame(orgattpvalues)
 orgattpvalues
 ```
@@ -1651,52 +1662,59 @@ length(unique(EcoAtlas$EAid))
 ```
 
 ```{r additional GOF}
-#for each of the 3 spatial and 3 nonspatial TERGMs include PR-AUC
+#for each of the 4 TERGMs calculate AUC of PR curves and ROC and compare to baseline network density (from across time steps)
 
-#Precision Recall Curve
-
-library(PRROC)
-
-compute_pr_curve <- function(model) {
-  # 1. Extract design matrix and response
-  X <- as.matrix(model@effects)
-  y <- as.numeric(model@response)
-  
-  # 2. Predicted probabilities
-  beta <- as.numeric(model@coef)
-  p <- plogis(X %*% beta)
-  
-  # 3. Compute Precision-Recall curve
-  # PRROC expects "scores for positive class" and labels
-  pr <- pr.curve(scores.class0 = p[y == 1],
-                 scores.class1 = p[y == 0],
-                 curve = TRUE)
-  
-  # Plot the PR curve
-  plot(pr, main = paste("PR Curve for", deparse(model@formula)))
-  
-  # Return the PR object for area under the curve etc.
-  return(pr)
-}
+#Precision Recall Curve AUC
+tergmgof_control$`Tie prediction`$auc.pr
+tergmgof_control$`Tie prediction`$auc.roc
+#PR AUC is 0.0658 and ROC AUC is 0.497
 
 
-#For control model
-pr_TERGM_c <- compute_pr_curve(TERGM_control)
-pr_TERGM_c$auc.integral  # area under the PR curve
+#Density to compare to AUC
+total_edges <- sum(sapply(estnets[2:7], function(net) {
+  sum(as.matrix.network(net))
+}))
 
-# For TC model
-pr_TERGM_TC <- compute_pr_curve(TERGM_TC)
-pr_TERGM_TC$auc.integral  # area under the PR curve
+total_dyads <- sum(sapply(estnets[2:7], function(net) {
+  length(as.matrix.network(net))
+}))
 
-#For spatial benefits model
-pr_TERGM_b <- compute_pr_curve(TERGM_spatialbens)
-pr_TERGM_b$auc.integral  # area under the PR curve
+baseline_density <- total_edges / total_dyads
+baseline_density
+#0.05568599
+#In PR analysis, interpret relative to baseline positive rate (i.e. positive edges), random baseline = edge prevalence would be random model. Since 0.066 AUC is above 0.0557 model is better than random.
 
-#for full model
-pr_TERGM_f <- compute_pr_curve(TERGM_spatialfull)
-pr_TERGM_f$auc.integral  # area under the PR curve
+#Check for TC Model
+tergmgof_TC$`Tie prediction`$auc.pr
+tergmgof_TC$`Tie prediction`$auc.roc
+#now PR AUC is 0.116 and ROC is 0.688 which improves
 
 
 
+#Density of the spatial networks to compare to AUC
+total_edges <- sum(sapply(estspatialnets[2:7], function(net) {
+  sum(as.matrix.network(net))
+}))
+
+total_dyads <- sum(sapply(estspatialnets[2:7], function(net) {
+  length(as.matrix.network(net))
+}))
+
+baseline_density <- total_edges / total_dyads
+baseline_density
+#Density is higher at 0.075, understandable given smaller network size from excluding projects
+
+#Check for Spatial Benefits Model
+tergmgof_spatialben$`Tie prediction`$auc.pr
+tergmgof_spatialben$`Tie prediction`$auc.roc
+#Now PR AUC is 0.104 and ROC AUC is 0.539 which slightly declines but understandable given insignficant predictors dominating this model
+#PR AUC is still higher than baseline density of 0.075
+
+#Check Full Model
+tergmgof_spatialfull$`Tie prediction`$auc.pr
+tergmgof_spatialfull$`Tie prediction`$auc.roc
+#Now PR AUC is 0.2088 which is much improved
+#And ROC AUC is 0.725 which is also a big improvement
+#Both much higher than baseline density of 0.075
 
 ```
