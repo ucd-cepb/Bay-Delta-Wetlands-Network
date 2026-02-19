@@ -1729,6 +1729,47 @@ ExcludedProjectsEAID <- ExcludedProjects$EAid_noactivity
 
 projectsshp <- projectsshp %>%  unite(EAid_noactivity, projectid, siteid, sep = ".", remove = FALSE)
 ExcludedProjshp <- projectsshp[projectsshp$EAid %in% ExcludedProjectsEAID, ]
+ExcludedProjshp <- st_as_sf(ExcludedProjshp)
 
-#st_write(ExcludedProjshp, "ExcludedProjs.shp")
+
+#Perform Area Interpolation to Get CES and Bio Scores for Excluded Projects
+
+#biodiversity interpolation
+#use areal package for this
+#validate function to confirm all requirements are there
+ar_validate(bio, ExcludedProjshp, varList="bptn_nr", verbose=TRUE)
+
+#need to transform into planar CRS
+excludeprojects.utm <-  ExcludedProjshp %>%    st_transform(crs = "+proj=utm +zone=10 +datum=NAD83 +ellps=GRS80")
+
+#complete interpolation on the normalized score of biodiversity for the habitat hexagon relative to the eco region it is in
+exclprojbio <- aw_interpolate(excludeprojects.utm, tid = shpid, source = biodiverse.utm, sid = OBJECTID,
+                           weight = "sum", output = "sf", 
+                          intensive = "SpBioWtEco")
+#drop geometry and only save the scores and project id so that we can merge it with existing project attribute data
+exclprojbio <- exclprojbio %>% st_drop_geometry() %>% dplyr::select("shpid", "pname", "SpBioWtEco")
+
+
+#interpolation for the CI score
+exclCalEnviro.aw <- aw_interpolate(excludeprojects.utm, tid = shpid, source = ces.utm, sid = Tract,
+                           weight = "sum", output = "sf", 
+                           intensive = c("CIscore"))
+#drop geometry again
+exclprojCES <- exclCalEnviro.aw %>% st_drop_geometry() %>% dplyr::select("shpid", "pname", "CIscore")
+
+#convert -999 values to NA
+exclprojCES$CalEnvscore <- ifelse(exclprojCES$CIscore<0, NA, exclprojCES$CIscore)
+
+#remove duplicates from bio and CES interpolations 
+exclprojbio <- exclprojbio %>% 
+  dplyr::filter(!duplicated(cbind(shpid, pname, SpBioWtEco)))
+
+exclprojCES <- exclprojCES %>% dplyr::filter(!duplicated(cbind(shpid, pname, CalEnvscore)))
+
+#merge back into project attributes
+ExcludedProjshp <- dplyr::left_join(ExcludedProjshp, exclprojbio, by="shpid")
+ExcludedProjshp <- dplyr::left_join(ExcludedProjshp, exclprojCES, by="shpid")
+
+#st_write(ExcludedProjshp, "ExcludedProjs_wAW.shp")
+
 ```
