@@ -1817,3 +1817,16 @@ sd(NonSpatialProjects$degree)
 sd(SpatialProjects$degree)
 
 ```
+
+```{r degree range for boundary spanners}
+
+boundaryspanners <- subset(attributes2, attributes2$orgboundaryspanner==1)
+summary(boundaryspanners$degree)
+sd(boundaryspanners$degree)
+
+nonboundaryspanners <- subset(attributes2, attributes2$orgboundaryspanner==0)
+summary(nonboundaryspanners$degree)
+sd(nonboundaryspanners$degree)
+
+
+```
