@@ -1773,3 +1773,47 @@ ExcludedProjshp <- dplyr::left_join(ExcludedProjshp, exclprojCES, by="shpid")
 #st_write(ExcludedProjshp, "ExcludedProjs_wAW.shp")
 
 ```
+
+```{r Spatial versus Non Spatial Projects Comparision}
+
+attributes2$nospatialdata <- ifelse(attributes2$blankej==1 | attributes2$blankflood==1 | attributes2$blankbio==1, 1, 0)
+
+table(attributes2$nospatialdata) #identified the full 65 projects without sufficient spatial data
+
+NonSpatialProjects <- subset(attributes2, attributes2$nospatialdata==1)
+SpatialProjects <- subset(attributes2, attributes2$nospatialdata==0)
+SpatialProjects <- subset(SpatialProjects, !is.na(SpatialProjects$EAid))
+
+summary(NonSpatialProjects$startyear)
+summary(SpatialProjects$startyear)
+
+
+table(NonSpatialProjects$deltaregion)
+table(SpatialProjects$deltaregion)
+
+table(NonSpatialProjects$habitatname)
+table(SpatialProjects$habitatname)
+
+
+table(NonSpatialProjects$activitytypename)
+table(SpatialProjects$activitytypename)
+
+
+summary(NonSpatialProjects$thousacres)
+summary(SpatialProjects$thousacres)
+sd(NonSpatialProjects$thousacres, na.rm=TRUE)
+sd(SpatialProjects$thousacres, na.rm = TRUE)
+
+summary(NonSpatialProjects$SUM_benefits)
+summary(SpatialProjects$SUM_benefits)
+sd(NonSpatialProjects$SUM_benefits)
+sd(SpatialProjects$SUM_benefits)
+
+
+summary(NonSpatialProjects$degree)
+summary(SpatialProjects$degree)
+
+sd(NonSpatialProjects$degree)
+sd(SpatialProjects$degree)
+
+```
