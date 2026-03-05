@@ -1830,3 +1830,30 @@ sd(nonboundaryspanners$degree)
 
 
 ```
+
+```{r explore funding pools over time}
+#orgs with most funding pools
+table(attributes2$fundpools)
+#USFWS (11), CDFW and DWR (6), WCB (5) and rest below 5
+#121 with 1 funding pool, 37 funding pools (not funders)
+
+#Degree of high funding pool orgs
+highfundpools <- attributes2 %>% filter(fundpools>4) %>% select(nodes, fundpools, degree)
+
+degreebyfundpool <- attributes2 %>% group_by(fundpools) %>% summarise(mean(degree))
+#USFWS (75), CDFW (41), DWR (32), WCB (53)
+#Average of those with 1 pool- 3.719
+#Average of those with 0 pools- 1.838
+
+#ID Degree of high funding pool orgs over time steps (step 0, 1, 2, 3, 4, 5, 6)
+View(step0degree) 
+View(step1degree) 
+View(step2degree) 
+View(step3degree) 
+View(step4degree) 
+View(step5degree) 
+View(step6degree) 
+
+#create table of degree by org over time steps and total orgs in each time step
+
+```
