@@ -1854,6 +1854,60 @@ View(step4degree)
 View(step5degree) 
 View(step6degree) 
 
-#create table of degree by org over time steps and total orgs in each time step
+#degree by org funding pools over time steps
 
+attributes2$nofundpool <- ifelse(attributes2$fundpools==0, 1, ifelse(attributes$fundpools>0, 0, NA))
+
+table(attributes2$nofundpool)
+
+attributes2$onefundpool <- ifelse(attributes$fundpools==1, 1, 0)
+
+attributes2$twoplusfundpool <- ifelse(attributes$fundpools>1, 1, 0)
+
+orgfundingpools <- attributes2 %>% select("nodes", "fundpools", "nofundpool", "onefundpool", "twoplusfundpool")
+
+orgfundingpools$org <- orgfundingpools$nodes
+
+step0degree <- left_join(step0degree, orgfundingpools, by="org")
+step1degree <- left_join(step1degree, orgfundingpools, by="org")
+step2degree <- left_join(step2degree, orgfundingpools, by="org")
+step3degree <- left_join(step3degree, orgfundingpools, by="org")
+step4degree <- left_join(step4degree, orgfundingpools, by="org")
+step5degree <- left_join(step5degree, orgfundingpools, by="org")
+step6degree <- left_join(step6degree, orgfundingpools, by="org")
+
+step0degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step0degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step0degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+
+step1degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step1degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step1degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+
+step2degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step2degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step2degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+
+step3degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step3degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step3degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+
+
+step4degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step4degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step4degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+
+step5degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step5degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step5degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+
+step6degree %>% group_by(nofundpool) %>% summarise(mean(degree))
+step6degree %>% group_by(onefundpool) %>% summarise(mean(degree))
+step6degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
 ```
