@@ -2033,3 +2033,90 @@ TERGM_vNew22 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gw
 summary(TERGM_vNew22)
 
 ```
+
+
+```{r extra correlations with funding pool}
+#Correlation funding dummies and boundary spanner
+cor.test(attributes2$orgboundaryspanner, attributes2$binaryfund, method="spearman")
+cor.test(attributes2$orgboundaryspanner, attributes2$twoplusfundpool, method= "spearman")
+cor.test(attributes2$orgboundaryspanner, attributes2$fundpools, method= "spearman")
+
+#correlations for only spatial model orgs
+spatialorgs <- spatialnet %v% 'vertex.names'
+spatialorgs <- spatialorgs[161:298] #138 orgs compared to 169 in overall network
+
+spatialorgatts <- subset(attributes2, nodes %in% spatialorgs)
+
+cor.test(spatialorgatts$orgboundaryspanner, spatialorgatts$binaryfund, method="spearman")
+cor.test(spatialorgatts$orgboundaryspanner, spatialorgatts$twoplusfundpool, method= "spearman")
+cor.test(spatialorgatts$orgboundaryspanner, spatialorgatts$fundpools, method= "spearman")
+```
+
+```{r average degree by time step by funding pools cont.}
+#average degree of 0 FP, >1 FP for spatial model orgs by time step
+
+#first get degrees for only spatial network in each time step
+spatialdegstep0 <- sna::degree(step0spatial)
+spatialnamesstep0 <- step0spatial %v% 'vertex.names'
+spatialdegstep0 <- cbind(spatialnamesstep0, spatialdegstep0)
+spatialdegstep0 <- as.data.frame(spatialdegstep0)
+spatialdegstep0$degree <- as.numeric(spatialdegstep0$spatialdegstep0)
+spatialdegstep0$degree <- spatialdegstep0$degree/2  #must divide by 2 for bipartite
+
+
+spatialdegstep1 <- sna::degree(step1spatial)
+spatialnamesstep1 <- step1spatial %v% 'vertex.names'
+spatialdegstep1 <- cbind(spatialnamesstep1, spatialdegstep1)
+spatialdegstep1 <- as.data.frame(spatialdegstep1)
+spatialdegstep1$degree <- as.numeric(spatialdegstep1$spatialdegstep1)
+spatialdegstep1$degree <- spatialdegstep1$degree/2  #must divide by 2 for bipartite
+
+spatialdegstep2 <- sna::degree(step2spatial)
+spatialnamesstep2 <- step2spatial %v% 'vertex.names'
+spatialdegstep2 <- cbind(spatialnamesstep2, spatialdegstep2)
+spatialdegstep2 <- as.data.frame(spatialdegstep2)
+spatialdegstep2$degree <- as.numeric(spatialdegstep2$spatialdegstep2)
+spatialdegstep2$degree <- spatialdegstep2$degree/2  #must divide by 2 for bipartite
+
+
+spatialdegstep3 <- sna::degree(step3spatial)
+spatialnamesstep3 <- step3spatial %v% 'vertex.names'
+spatialdegstep3 <- cbind(spatialnamesstep3, spatialdegstep3)
+spatialdegstep3 <- as.data.frame(spatialdegstep3)
+spatialdegstep3$degree <- as.numeric(spatialdegstep3$spatialdegstep3)
+spatialdegstep3$degree <- spatialdegstep3$degree/2  #must divide by 2 for bipartite
+
+
+
+spatialdegstep4 <- sna::degree(step4spatial)
+spatialnamesstep4 <- step4spatial %v% 'vertex.names'
+spatialdegstep4 <- cbind(spatialnamesstep4, spatialdegstep4)
+spatialdegstep4 <- as.data.frame(spatialdegstep4)
+spatialdegstep4$degree <- as.numeric(spatialdegstep4$spatialdegstep4)
+spatialdegstep4$degree <- spatialdegstep4$degree/2  #must divide by 2 for bipartite
+
+
+
+spatialdegstep5 <- sna::degree(step5spatial)
+spatialnamesstep5 <- step5spatial %v% 'vertex.names'
+spatialdegstep5 <- cbind(spatialnamesstep5, spatialdegstep5)
+spatialdegstep5 <- as.data.frame(spatialdegstep5)
+spatialdegstep5$degree <- as.numeric(spatialdegstep5$spatialdegstep5)
+spatialdegstep5$degree <- spatialdegstep5$degree/2  #must divide by 2 for bipartite
+
+
+
+spatialdegstep6 <- sna::degree(step6spatial)
+spatialnamesstep6 <- step6spatial %v% 'vertex.names'
+spatialdegstep6 <- cbind(spatialnamesstep6, spatialdegstep6)
+spatialdegstep6 <- as.data.frame(spatialdegstep6)
+spatialdegstep6$degree <- as.numeric(spatialdegstep6$spatialdegstep6)
+spatialdegstep6$degree <- spatialdegstep6$degree/2  #must divide by 2 for bipartite
+
+
+#now merge funding pools with orgs in each time step 
+
+
+#use group_by to calculate average degree by time step
+
+```
