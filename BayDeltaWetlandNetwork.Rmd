@@ -1911,3 +1911,125 @@ step6degree %>% group_by(nofundpool) %>% summarise(mean(degree))
 step6degree %>% group_by(onefundpool) %>% summarise(mean(degree))
 step6degree %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
 ```
+
+```{r test of funding pools in TERGM}
+
+#create new dummy variables of funding pools
+
+#use two plus fund pools in TERGM
+# also create one that is simply 0 fund pools or >1 fund pool
+
+attributes2$binaryfund <- ifelse(attributes2$fundpools==0, 0, ifelse(attributes2$fundpools>0, 1, NA))
+
+network::set.vertex.attribute(net, "multifund", attributes2$twoplusfundpool)
+network::set.vertex.attribute(net, "binaryfund", attributes2$binaryfund)
+
+
+#Now rerun the earlier code to split the network into time steps to now have new attributes from main network
+
+#create new list options of only network steps 3-6 (numbered 2 to 5 when start from 0) to model TERGM for fewer time steps- include prior step 2 as the base which is not estimated
+
+nets3to6 <- list(step2net, step3net, step4net, step5net)
+
+spatialnets3to6 <- list(step2spatial, step3spatial, step4spatial, step5spatial)
+
+set.seed(11334)
+
+#Test 2 TERGMs with binary funding pool attribute (w/ and w/o boundary spanner) for full spatial model and org capacity only
+
+#1- Binary Fund Pool Attribute, Boundary Spanner, Org Capacity Only
+TERGM_vNew1 <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("binaryfund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vNew1)
+
+
+#2- Binary Fund Pool Attribute, No Boundary Spanner, Org Capacity Only
+TERGM_vNew2 <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("binaryfund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vNew2)
+
+#3- Binary Fund Pool Attribute, Boundary Spanner, Full Spatial Model
+TERGM_vNew3 <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("binaryfund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew3)
+
+#4- Binary Fund Pool Attribute, No Boundary Spanner, Full Spatial Model
+TERGM_vNew4 <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("binaryfund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew4)
+
+#Test 2 TERGMs with 2+ funding pool attributes (w/ and w/o boundary spanner) for full spatial model and org capacity only
+
+#1- 2+ Fund Pool Attribute, Boundary Spanner, Org Capacity Only
+TERGM_vNew5 <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("multifund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vNew5)
+
+#2- 2+ Fund Pool Attribute, No Boundary Spanner, Org Capacity Only
+TERGM_vNew6 <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("multifund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vNew6)
+
+#3- 2+ Fund Pool Attribute, Boundary Spanner, Full Spatial Model
+TERGM_vNew7 <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("multifund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew7)
+
+#4- 2+ Fund Pool Attribute, No Boundary Spanner, Full Spatial Model
+TERGM_vNew8 <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("multifund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew8)
+
+#Test 1 TERGM dropping boundary spanner (original fund pools variable) for full spatial model and org capacity only
+
+#1- No boundary spanner in original org capacity only TERGM
+TERGM_vNew9 <- btergm(estnets ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("fundingpools") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vNew9)
+
+#2- No boundary spanner in original full spatial TERGM
+TERGM_vNew10 <- btergm(estspatialnets ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("fundingpools") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew10)
+
+#Test 6 variations of the TERGMs for only time steps 3-5 (w/ and w/o boundary spanner and for all 3 potential funding pool variables) for full spatial model and org capacity only
+
+#1- Limited time step, binary fund pool, with boundary spanner, org capacity only
+TERGM_vN11 <- btergm(nets3to6 ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("binaryfund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vN11)
+
+#2- Limited time step, binary fund pool, no boundary spanner, org capacity only
+TERGM_vN12 <- btergm(nets3to6 ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("binaryfund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vN12)
+
+#3- Limited time step, binary fund pool, with boundary spanner, full spatial
+TERGM_vNew13 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("binaryfund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew13)
+
+#4- Limited time step, binary fund pool, no boundary spanner, full spatial
+TERGM_vNew14 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("binaryfund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew14)
+
+#5- Limited time step, 2+ fund pool, with boundary spanner, org capacity only
+TERGM_vN15 <- btergm(nets3to6 ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("multifund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vN15)
+
+#6- Limited time step, 2+ fund pool, no boundary spanner, org capacity only
+TERGM_vN16 <- btergm(nets3to6 ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("multifund") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vN16)
+
+#7- Limited time step, 2+ fund pool, with boundary spanner, full spatial
+TERGM_vNew17 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("multifund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew17)
+
+#8- Limited time step, 2+ fund pool, no boundary spanner, full spatial
+TERGM_vNew18 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") +  b2cov("multifund") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew18)
+
+#9- Limited time step, og. fund pool, with boundary spanner, org capacity only
+TERGM_vN19 <- btergm(nets3to6 ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vN19)
+
+#10- Limited time step, og. fund pool, no boundary spanner, org capacity only
+TERGM_vN20 <- btergm(nets3to6 ~ edges + gwb1degree(0.5, fixed=TRUE)+gwb2degree(0.5, fixed=TRUE) + b2degree(1)+ b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("fundingpools") + b2nodematch("gov") + b2nodematch("orgscale"), offset=FALSE)
+summary(TERGM_vN20)
+
+#11- Limited time step, og. fund pool, with boundary spanner, full spatial
+TERGM_vNew21 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("boundaryspanner") + b2cov("fundingpools") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew21)
+
+#12- Limited time step, og. fund pool, no boundary spanner, full spatial
+TERGM_vNew22 <- btergm(spatialnets3to6 ~ edges+ gwb1degree(0.5, fixed=TRUE) + gwb2degree(0.5,fixed=TRUE) + b2degree(1) + b2cov("gov") + b2factor("orgscale") + b2cov("implementer") + b2cov("fundingpools") + b2nodematch("orgscale") + b2nodematch("gov") + b1cov("totalES") + b1cov("tidal") + b1cov("delta") + b1cov("floodrisk") + b1cov("CES") + b1cov("biodiversity") + b1cov("thousacres"), offset=FALSE)
+summary(TERGM_vNew22)
+
+```
