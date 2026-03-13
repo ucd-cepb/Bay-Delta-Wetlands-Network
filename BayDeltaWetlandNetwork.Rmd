@@ -2113,10 +2113,47 @@ spatialdegstep6 <- as.data.frame(spatialdegstep6)
 spatialdegstep6$degree <- as.numeric(spatialdegstep6$spatialdegstep6)
 spatialdegstep6$degree <- spatialdegstep6$degree/2  #must divide by 2 for bipartite
 
+#now merge funding pools with orgs in each time step
 
-#now merge funding pools with orgs in each time step 
+#first rename nodes column to match
+spatialdegstep0 <- spatialdegstep0 %>% rename(org = spatialnamesstep0)
+spatialdegstep1 <- spatialdegstep1 %>% rename(org = spatialnamesstep1)
+spatialdegstep2 <- spatialdegstep2 %>% rename(org = spatialnamesstep2)
+spatialdegstep3 <- spatialdegstep3 %>% rename(org = spatialnamesstep3)
+spatialdegstep4 <- spatialdegstep4 %>% rename(org = spatialnamesstep4)
+spatialdegstep5 <- spatialdegstep5 %>% rename(org = spatialnamesstep5)
+spatialdegstep6 <- spatialdegstep6 %>% rename(org = spatialnamesstep6)
 
+
+#then combine so each org has degree and funding pools per time step
+spatialdegstep0 <- left_join(spatialdegstep0, orgfundingpools, by="org")
+spatialdegstep1 <- left_join(spatialdegstep1, orgfundingpools, by="org")
+spatialdegstep2 <- left_join(spatialdegstep2, orgfundingpools, by="org")
+spatialdegstep3 <- left_join(spatialdegstep3, orgfundingpools, by="org")
+spatialdegstep4 <- left_join(spatialdegstep4, orgfundingpools, by="org")
+spatialdegstep5 <- left_join(spatialdegstep5, orgfundingpools, by="org")
+spatialdegstep6 <- left_join(spatialdegstep6, orgfundingpools, by="org")
 
 #use group_by to calculate average degree by time step
+spatialstep0degbyfp <- spatialdegstep0 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep0degby2fp <- spatialdegstep0 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+spatialstep1degbyfp <- spatialdegstep1 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep1degby2fp <- spatialdegstep1 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+spatialstep2degbyfp <- spatialdegstep2 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep2degby2fp <- spatialdegstep2 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+spatialstep3degbyfp <- spatialdegstep3 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep3degby2fp <- spatialdegstep3 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+spatialstep4degbyfp <- spatialdegstep4 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep4degby2fp <- spatialdegstep4 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+spatialstep5degbyfp <- spatialdegstep5 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep5degby2fp <- spatialdegstep5 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
+
+spatialstep6degbyfp <- spatialdegstep6 %>% group_by(nofundpool) %>% summarise(mean(degree))
+spatialstep6degby2fp <- spatialdegstep6 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
 
 ```
