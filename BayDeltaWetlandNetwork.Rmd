@@ -2156,4 +2156,8 @@ spatialstep5degby2fp <- spatialdegstep5 %>% group_by(twoplusfundpool) %>% summar
 spatialstep6degbyfp <- spatialdegstep6 %>% group_by(nofundpool) %>% summarise(mean(degree))
 spatialstep6degby2fp <- spatialdegstep6 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
 
+
+
+
+
 ```
