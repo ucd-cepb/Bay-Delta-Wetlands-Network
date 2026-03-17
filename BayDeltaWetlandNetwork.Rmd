@@ -2158,6 +2158,18 @@ spatialstep6degby2fp <- spatialdegstep6 %>% group_by(twoplusfundpool) %>% summar
 
 
 
+meandegspatialstep0 <- spatialdegstep0 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
+
+meandegspatialstep1 <- spatialdegstep1 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
 
 
+meandegspatialstep2 <- spatialdegstep2 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
+
+meandegspatialstep3 <- spatialdegstep3 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
+
+meandegspatialstep4 <- spatialdegstep4 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
+
+meandegspatialstep5 <- spatialdegstep5 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
+
+meandegspatialstep6 <- spatialdegstep6 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
 ```
