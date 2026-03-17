@@ -2157,7 +2157,7 @@ spatialstep6degbyfp <- spatialdegstep6 %>% group_by(nofundpool) %>% summarise(me
 spatialstep6degby2fp <- spatialdegstep6 %>% group_by(twoplusfundpool) %>% summarise(mean(degree))
 
 
-
+#Average Degree for all orgs in spatial network by time step
 meandegspatialstep0 <- spatialdegstep0 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
 
 meandegspatialstep1 <- spatialdegstep1 %>% filter(!is.na(fundpools)) %>% summarise(mean(degree))
